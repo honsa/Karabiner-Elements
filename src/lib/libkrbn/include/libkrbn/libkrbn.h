@@ -42,6 +42,7 @@ void libkrbn_launch_event_viewer(void);
 void libkrbn_launch_menu(void);
 void libkrbn_launch_preferences(void);
 void libkrbn_launch_multitouch_extension(void);
+void libkrbn_launch_uninstaller(void);
 
 bool libkrbn_driver_running(void);
 bool libkrbn_virtual_hid_keyboard_exists(void);
@@ -50,7 +51,7 @@ bool libkrbn_system_core_configuration_file_path_exists(void);
 
 // types
 
-bool libkrbn_is_momentary_switch_event(int32_t usage_page, int32_t usage);
+bool libkrbn_is_momentary_switch_event_target(int32_t usage_page, int32_t usage);
 bool libkrbn_is_modifier_flag(int32_t usage_page, int32_t usage);
 void libkrbn_get_momentary_switch_event_json_string(char* buffer, size_t length, int32_t usage_page, int32_t usage);
 void libkrbn_get_momentary_switch_event_usage_name(char* buffer, size_t length, int32_t usage_page, int32_t usage);
@@ -135,6 +136,7 @@ size_t libkrbn_core_configuration_get_selected_profile_complex_modifications_rul
 const char* libkrbn_core_configuration_get_selected_profile_complex_modifications_rule_description(libkrbn_core_configuration* p, size_t index);
 void libkrbn_core_configuration_erase_selected_profile_complex_modifications_rule(libkrbn_core_configuration* p, size_t index);
 void libkrbn_core_configuration_swap_selected_profile_complex_modifications_rules(libkrbn_core_configuration* p, size_t index1, size_t index2);
+void libkrbn_core_configuration_move_selected_profile_complex_modifications_rule(libkrbn_core_configuration* p, size_t source_index, size_t destination_index);
 int libkrbn_core_configuration_get_selected_profile_complex_modifications_parameter(libkrbn_core_configuration* p,
                                                                                     const char* name);
 void libkrbn_core_configuration_set_selected_profile_complex_modifications_parameter(libkrbn_core_configuration* p,
@@ -181,6 +183,7 @@ void libkrbn_complex_modifications_assets_manager_reload(void);
 
 size_t libkrbn_complex_modifications_assets_manager_get_files_size(void);
 const char* libkrbn_complex_modifications_assets_manager_get_file_title(size_t index);
+time_t libkrbn_complex_modifications_assets_manager_get_file_last_write_time(size_t index);
 
 size_t libkrbn_complex_modifications_assets_manager_get_rules_size(size_t file_index);
 const char* libkrbn_complex_modifications_assets_manager_get_rule_description(size_t file_index,
@@ -230,9 +233,14 @@ const char* libkrbn_connected_devices_get_descriptions_product(libkrbn_connected
 bool libkrbn_connected_devices_get_device_identifiers(libkrbn_connected_devices* p,
                                                       size_t index,
                                                       libkrbn_device_identifiers* device_identifiers);
+uint64_t libkrbn_connected_devices_get_vendor_id(libkrbn_connected_devices* p, size_t index);
+uint64_t libkrbn_connected_devices_get_product_id(libkrbn_connected_devices* p, size_t index);
+bool libkrbn_connected_devices_get_is_keyboard(libkrbn_connected_devices* p, size_t index);
+bool libkrbn_connected_devices_get_is_pointing_device(libkrbn_connected_devices* p, size_t index);
 bool libkrbn_connected_devices_get_is_built_in_keyboard(libkrbn_connected_devices* p, size_t index);
 bool libkrbn_connected_devices_get_is_built_in_trackpad(libkrbn_connected_devices* p, size_t index);
 bool libkrbn_connected_devices_get_is_built_in_touch_bar(libkrbn_connected_devices* p, size_t index);
+bool libkrbn_connected_devices_is_apple(libkrbn_connected_devices* p, size_t index);
 
 // You have to call `libkrbn_connected_devices_terminate(&initialized_connected_devices)`.
 typedef void (*libkrbn_connected_devices_monitor_callback)(libkrbn_connected_devices* initialized_connected_devices,
@@ -287,6 +295,8 @@ void libkrbn_enable_notification_message_json_file_monitor(libkrbn_file_monitor_
                                                            void* refcon);
 void libkrbn_disable_notification_message_json_file_monitor(void);
 
+const char* libkrbn_get_notification_message_body(void);
+
 //
 // libkrbn_frontmost_application_monitor
 //
@@ -326,7 +336,7 @@ typedef enum {
 typedef void (*libkrbn_hid_value_monitor_callback)(uint64_t device_id,
                                                    int32_t usage_page,
                                                    int32_t usage,
-                                                   libkrbn_hid_value_event_type event_type,
+                                                   int64_t integet_value,
                                                    void* refcon);
 void libkrbn_enable_hid_value_monitor(libkrbn_hid_value_monitor_callback callback,
                                       void* refcon);

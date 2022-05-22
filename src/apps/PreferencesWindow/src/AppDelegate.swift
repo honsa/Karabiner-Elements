@@ -1,160 +1,203 @@
 import AppKit
+import SwiftUI
 
 @NSApplicationMain
 public class AppDelegate: NSObject, NSApplicationDelegate {
-    @IBOutlet var simpleModificationsTableViewController: SimpleModificationsTableViewController!
-    @IBOutlet var complexModificationsFileImportWindowController: ComplexModificationsFileImportWindowController!
-    @IBOutlet var preferencesWindow: NSWindow!
-    @IBOutlet var preferencesWindowController: PreferencesWindowController!
-    @IBOutlet var systemPreferencesManager: SystemPreferencesManager!
-    @IBOutlet var stateJsonMonitor: StateJsonMonitor!
-    private var updaterMode = false
+  private var window: NSWindow?
+  private var updaterMode = false
 
-    override public init() {
-        super.init()
-        libkrbn_initialize()
+  override public init() {
+    super.init()
+    libkrbn_initialize()
+  }
+
+  public func applicationWillFinishLaunching(_: Notification) {
+    NSAppleEventManager.shared().setEventHandler(
+      self,
+      andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
+      forEventClass: AEEventClass(kInternetEventClass),
+      andEventID: AEEventID(kAEGetURL))
+  }
+
+  public func applicationDidFinishLaunching(_: Notification) {
+    NSApplication.shared.disableRelaunchOnLogin()
+
+    ProcessInfo.processInfo.enableSuddenTermination()
+
+    KarabinerKit.setup()
+    KarabinerKit.observeConsoleUserServerIsDisabledNotification()
+    LibKrbn.Settings.shared.start()
+
+    NotificationCenter.default.addObserver(
+      forName: Updater.didFindValidUpdate,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      guard let self = self else { return }
+
+      self.window?.makeKeyAndOrderFront(self)
+      NSApp.activate(ignoringOtherApps: true)
     }
 
-    public func applicationWillFinishLaunching(_: Notification) {
-        NSAppleEventManager.shared().setEventHandler(self,
-                                                     andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
-                                                     forEventClass: AEEventClass(kInternetEventClass),
-                                                     andEventID: AEEventID(kAEGetURL))
+    NotificationCenter.default.addObserver(
+      forName: Updater.didFinishUpdateCycleFor,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      guard let self = self else { return }
+
+      if self.updaterMode {
+        NSApplication.shared.terminate(nil)
+      }
     }
 
-    public func applicationDidFinishLaunching(_: Notification) {
-        NSApplication.shared.disableRelaunchOnLogin()
+    //
+    // Run updater or open preferences.
+    //
 
-        ProcessInfo.processInfo.enableSuddenTermination()
+    if CommandLine.arguments.count > 1 {
+      let command = CommandLine.arguments[1]
+      switch command {
+      case "checkForUpdatesInBackground":
+        #if USE_SPARKLE
+          updaterMode = true
+          Updater.shared.checkForUpdatesInBackground()
+          return
+        #else
+          NSApplication.shared.terminate(self)
+        #endif
+      case "checkForUpdatesStableOnly":
+        #if USE_SPARKLE
+          updaterMode = true
+          Updater.shared.checkForUpdatesStableOnly()
+          return
+        #else
+          NSApplication.shared.terminate(self)
+        #endif
+      case "checkForUpdatesWithBetaVersion":
+        #if USE_SPARKLE
+          updaterMode = true
+          Updater.shared.checkForUpdatesWithBetaVersion()
+          return
+        #else
+          NSApplication.shared.terminate(self)
+        #endif
+      default:
+        break
+      }
+    }
 
-        KarabinerKit.setup()
-        KarabinerKit.observeConsoleUserServerIsDisabledNotification()
+    var psn = ProcessSerialNumber(highLongOfPSN: 0, lowLongOfPSN: UInt32(kCurrentProcess))
+    TransformProcessType(
+      &psn, ProcessApplicationTransformState(kProcessTransformToForegroundApplication))
 
-        systemPreferencesManager.setup()
-        preferencesWindowController.setup()
-        stateJsonMonitor.start()
+    window = NSWindow(
+      contentRect: .zero,
+      styleMask: [
+        .titled,
+        .closable,
+        .miniaturizable,
+        .resizable,
+        .fullSizeContentView,
+      ],
+      backing: .buffered,
+      defer: false
+    )
+    window!.title = "Karabiner-Elements Preferences"
+    window!.contentView = NSHostingView(rootView: ContentView())
+    window!.center()
+    window!.makeKeyAndOrderFront(self)
 
-        NotificationCenter.default.addObserver(forName: Updater.didFindValidUpdate,
-                                               object: nil,
-                                               queue: .main) { [weak self] _ in
-            guard let self = self else { return }
+    NSApp.activate(ignoringOtherApps: true)
 
-            self.preferencesWindowController.show()
-        }
+    //
+    // Start StateJsonMonitor
+    //
 
-        NotificationCenter.default.addObserver(forName: Updater.updaterDidNotFindUpdate,
-                                               object: nil,
-                                               queue: .main) { [weak self] _ in
-            guard let self = self else { return }
+    AlertWindowsManager.shared.parentWindow = window
+    StateJsonMonitor.shared.start()
 
-            if self.updaterMode {
-                NSApplication.shared.terminate(nil)
+    //
+    // launchctl
+    //
+
+    libkrbn_launchctl_manage_session_monitor()
+    libkrbn_launchctl_manage_console_user_server(true)
+    // Do not manage grabber_agent and observer_agent because they are designed to run only once.
+  }
+
+  public func applicationWillTerminate(_: Notification) {
+    libkrbn_terminate()
+  }
+
+  public func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
+    if Updater.shared.sessionInProgress {
+      return false
+    }
+    return true
+  }
+
+  @objc func handleGetURLEvent(
+    _ event: NSAppleEventDescriptor,
+    withReplyEvent _: NSAppleEventDescriptor
+  ) {
+    // - url == "karabiner://karabiner/assets/complex_modifications/import?url=xxx"
+    // - url == "karabiner://karabiner/simple_modifications/new?json={xxx}"
+    guard let url = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue
+    else { return }
+
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { return }
+
+      KarabinerKit.endAllAttachedSheets(self.window)
+
+      let urlComponents = URLComponents(string: url)
+
+      if urlComponents?.path == "/assets/complex_modifications/import" {
+        if let queryItems = urlComponents?.queryItems {
+          for pair in queryItems {
+            if pair.name == "url" {
+              ComplexModificationsFileImport.shared.fetchJson(URL(string: pair.value!)!)
+
+              ContentViewStates.shared.navigationSelection =
+                NavigationTag.complexModifications.rawValue
+
+              ContentViewStates.shared.complexModificationsViewSheetView =
+                ComplexModificationsSheetView.fileImport
+              ContentViewStates.shared.complexModificationsViewSheetPresented = true
+              return
             }
+          }
         }
+      }
 
-        //
-        // Run updater or open preferences.
-        //
+      if urlComponents?.path == "/simple_modifications/new" {
+        if let queryItems = urlComponents?.queryItems {
+          for pair in queryItems {
+            if pair.name == "json" {
+              if let jsonString = pair.value {
+                ContentViewStates.shared.navigationSelection =
+                  NavigationTag.simpleModifications.rawValue
 
-        if CommandLine.arguments.count > 1 {
-            let command = CommandLine.arguments[1]
-            switch command {
-            case "checkForUpdatesInBackground":
-                #if USE_SPARKLE
-                    updaterMode = true
-                    Updater.shared.checkForUpdatesInBackground()
-                    return
-                #else
-                    NSApplication.shared.terminate(self)
-                #endif
-            case "checkForUpdatesStableOnly":
-                #if USE_SPARKLE
-                    updaterMode = true
-                    Updater.shared.checkForUpdatesStableOnly()
-                    return
-                #else
-                    NSApplication.shared.terminate(self)
-                #endif
-            case "checkForUpdatesWithBetaVersion":
-                #if USE_SPARKLE
-                    updaterMode = true
-                    Updater.shared.checkForUpdatesWithBetaVersion()
-                    return
-                #else
-                    NSApplication.shared.terminate(self)
-                #endif
-            default:
-                break
+                LibKrbn.Settings.shared.appendSimpleModification(
+                  jsonString: jsonString,
+                  device: ContentViewStates.shared.simpleModificationsViewSelectedDevice)
+                return
+              }
             }
+          }
         }
+      }
 
-        var psn = ProcessSerialNumber(highLongOfPSN: 0, lowLongOfPSN: UInt32(kCurrentProcess))
-        TransformProcessType(&psn, ProcessApplicationTransformState(kProcessTransformToForegroundApplication))
+      if let window = self.window {
+        let alert = NSAlert()
+        alert.messageText = "Error"
+        alert.informativeText = "Unknown URL"
+        alert.addButton(withTitle: "OK")
 
-        preferencesWindowController.show()
-    }
-
-    public func applicationWillTerminate(_: Notification) {
-        libkrbn_terminate()
-    }
-
-    public func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
-        if Updater.shared.updateInProgress {
-            return false
+        alert.beginSheetModal(for: window) { _ in
         }
-        return true
+      }
     }
-
-    public func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
-        preferencesWindowController.show()
-        return true
-    }
-
-    @objc func handleGetURLEvent(_ event: NSAppleEventDescriptor,
-                                 withReplyEvent _: NSAppleEventDescriptor)
-    {
-        // - url == "karabiner://karabiner/assets/complex_modifications/import?url=xxx"
-        // - url == "karabiner://karabiner/simple_modifications/new?json={xxx}"
-        guard let url = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue else { return }
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-
-            KarabinerKit.endAllAttachedSheets(self.preferencesWindow)
-
-            let urlComponents = URLComponents(string: url)
-
-            if urlComponents?.path == "/assets/complex_modifications/import" {
-                if let queryItems = urlComponents?.queryItems {
-                    for pair in queryItems {
-                        if pair.name == "url" {
-                            self.complexModificationsFileImportWindowController.setup(pair.value)
-                            self.complexModificationsFileImportWindowController.show()
-                            return
-                        }
-                    }
-                }
-            }
-
-            if urlComponents?.path == "/simple_modifications/new" {
-                if let queryItems = urlComponents?.queryItems {
-                    for pair in queryItems {
-                        if pair.name == "json" {
-                            self.simpleModificationsTableViewController.addItem(fromJson: pair.value)
-                            self.simpleModificationsTableViewController.openSimpleModificationsTab()
-                            return
-                        }
-                    }
-                }
-            }
-
-            let alert = NSAlert()
-            alert.messageText = "Error"
-            alert.informativeText = "Unknown URL"
-            alert.addButton(withTitle: "OK")
-
-            alert.beginSheetModal(for: self.preferencesWindow) { _ in
-            }
-        }
-    }
+  }
 }

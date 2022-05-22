@@ -44,8 +44,6 @@ public:
   device_grabber(std::weak_ptr<console_user_server_client> weak_console_user_server_client,
                  std::weak_ptr<grabber_state_json_writer> weak_grabber_state_json_writer) : dispatcher_client(),
                                                                                             virtual_hid_device_service_check_timer_(*this),
-                                                                                            is_virtual_hid_keyboard_ready_(false),
-                                                                                            is_virtual_hid_pointing_ready_(false),
                                                                                             profile_(nlohmann::json::object()),
                                                                                             logger_unique_filter_(logger::get_logger()) {
     notification_message_manager_ = std::make_shared<notification_message_manager>(
@@ -124,10 +122,11 @@ public:
     });
 
     virtual_hid_device_service_client_->virtual_hid_keyboard_ready_response.connect([this](auto&& ready) {
-      if (is_virtual_hid_keyboard_ready_ != ready) {
+      if (virtual_hid_devices_state_.get_virtual_hid_keyboard_ready() != ready) {
         logger::get_logger()->info("virtual_hid_device_service_client_ virtual_hid_keyboard_ready_response: {0}", ready);
 
-        is_virtual_hid_keyboard_ready_ = ready;
+        virtual_hid_devices_state_.set_virtual_hid_keyboard_ready(ready);
+        async_post_virtual_hid_devices_state_changed_event();
 
         // The virtual_hid_keyboard might be terminated due to virtual_hid_device_service_client_ error.
         // We try to reinitialize the device.
@@ -142,12 +141,13 @@ public:
     });
 
     virtual_hid_device_service_client_->virtual_hid_pointing_ready_response.connect([this](auto&& ready) {
-      if (is_virtual_hid_pointing_ready_ != ready) {
+      if (virtual_hid_devices_state_.get_virtual_hid_pointing_ready() != ready) {
         logger::get_logger()->info("virtual_hid_device_service_client_ virtual_hid_pointing_ready_response: {0}", ready);
 
-        is_virtual_hid_pointing_ready_ = ready;
+        virtual_hid_devices_state_.set_virtual_hid_pointing_ready(ready);
+        async_post_virtual_hid_devices_state_changed_event();
 
-        // The virtual_hid_keyboard might be terminated due to virtual_hid_device_service_client_ error.
+        // The virtual_hid_pointing might be terminated due to virtual_hid_device_service_client_ error.
         // We try to reinitialize the device.
         if (!ready) {
           virtual_hid_device_service_client_->async_virtual_hid_pointing_terminate();
@@ -239,7 +239,8 @@ public:
           if (it != std::end(entries_)) {
             auto event_queue = event_queue::utility::make_queue(device_id,
                                                                 hid_queue_values_converter_.make_hid_values(device_id,
-                                                                                                            values_ptr));
+                                                                                                            values_ptr),
+                                                                it->second->get_event_origin());
             event_queue = event_queue::utility::insert_device_keys_and_pointing_buttons_are_released_event(event_queue,
                                                                                                            device_id,
                                                                                                            it->second->get_pressed_keys_manager());
@@ -250,8 +251,9 @@ public:
         entry->get_hid_queue_value_monitor()->started.connect([this, device_id] {
           auto it = entries_.find(device_id);
           if (it != std::end(entries_)) {
-            logger::get_logger()->info("{0} is grabbed.",
-                                       it->second->get_device_name());
+            logger::get_logger()->info("{0} hid queue value monitor is started ({1}).",
+                                       it->second->get_device_name(),
+                                       it->second->get_event_origin() == event_origin::grabbed_device ? "grabbed" : "observed");
             logger_unique_filter_.reset();
 
             post_device_grabbed_event(it->second->get_device_properties());
@@ -267,7 +269,7 @@ public:
         entry->get_hid_queue_value_monitor()->stopped.connect([this, device_id] {
           auto it = entries_.find(device_id);
           if (it != std::end(entries_)) {
-            logger::get_logger()->info("{0} is ungrabbed.",
+            logger::get_logger()->info("{0} hid queue value monitor is stopped.",
                                        it->second->get_device_name());
             logger_unique_filter_.reset();
 
@@ -400,6 +402,7 @@ public:
                                  e,
                                  event_type,
                                  event,
+                                 event_origin::virtual_device,
                                  event_queue::state::virtual_event);
 
         merged_input_event_queue_->push_back_entry(entry);
@@ -513,6 +516,7 @@ public:
                                  event,
                                  t,
                                  event,
+                                 event_origin::virtual_device,
                                  event_queue::state::virtual_event);
         merged_input_event_queue_->push_back_entry(entry);
       }
@@ -529,6 +533,7 @@ public:
                                event,
                                event_type::single,
                                event,
+                               event_origin::virtual_device,
                                event_queue::state::virtual_event);
 
       merged_input_event_queue_->push_back_entry(entry);
@@ -545,6 +550,7 @@ public:
                                event,
                                event_type::single,
                                event,
+                               event_origin::virtual_device,
                                event_queue::state::virtual_event);
 
       merged_input_event_queue_->push_back_entry(entry);
@@ -562,6 +568,24 @@ public:
                                event,
                                event_type::single,
                                event,
+                               event_origin::virtual_device,
+                               event_queue::state::virtual_event);
+
+      merged_input_event_queue_->push_back_entry(entry);
+
+      krbn_notification_center::get_instance().enqueue_input_event_arrived(*this);
+    });
+  }
+
+  void async_post_virtual_hid_devices_state_changed_event(void) {
+    enqueue_to_dispatcher([this] {
+      auto event = event_queue::event::make_virtual_hid_devices_state_changed_event(virtual_hid_devices_state_);
+      event_queue::entry entry(device_id(0),
+                               event_queue::event_time_stamp(pqrs::osx::chrono::mach_absolute_time_point()),
+                               event,
+                               event_type::single,
+                               event,
+                               event_origin::virtual_device,
                                event_queue::state::virtual_event);
 
       merged_input_event_queue_->push_back_entry(entry);
@@ -579,6 +603,7 @@ public:
                                event,
                                event_type::single,
                                event,
+                               event_origin::virtual_device,
                                event_queue::state::virtual_event);
 
       merged_input_event_queue_->push_back_entry(entry);
@@ -648,12 +673,14 @@ private:
       bool needs_regrab = false;
 
       for (const auto& e : event_queue->get_entries()) {
-        if (auto ev = e.get_event().get_if<momentary_switch_event>()) {
-          needs_regrab |= probable_stuck_events_manager->update(
-              *ev,
-              e.get_event_type(),
-              e.get_event_time_stamp().get_time_stamp(),
-              device_state::grabbed);
+        if (entry->get_event_origin() == event_origin::grabbed_device) {
+          if (auto ev = e.get_event().get_if<momentary_switch_event>()) {
+            needs_regrab |= probable_stuck_events_manager->update(
+                *ev,
+                e.get_event_type(),
+                e.get_event_time_stamp().get_time_stamp(),
+                device_state::grabbed);
+          }
         }
 
         if (!entry->get_disabled()) {
@@ -662,6 +689,7 @@ private:
                                 e.get_event(),
                                 e.get_event_type(),
                                 e.get_original_event(),
+                                e.get_event_origin(),
                                 e.get_state());
 
           merged_input_event_queue_->push_back_entry(qe);
@@ -686,6 +714,7 @@ private:
                                  event,
                                  event_type::single,
                                  event,
+                                 event_origin::virtual_device,
                                  event_queue::state::virtual_event);
 
         merged_input_event_queue_->push_back_entry(entry);
@@ -702,6 +731,7 @@ private:
                              event,
                              event_type::single,
                              event,
+                             event_origin::virtual_device,
                              event_queue::state::virtual_event);
 
     merged_input_event_queue_->push_back_entry(entry);
@@ -716,6 +746,7 @@ private:
                              event,
                              event_type::single,
                              event,
+                             event_origin::virtual_device,
                              event_queue::state::virtual_event);
 
     merged_input_event_queue_->push_back_entry(entry);
@@ -765,24 +796,10 @@ private:
       return grabbable_state::state::ungrabbable_permanently;
     }
 
-    if (entry->is_ignored_device()) {
-      auto device_properties = entry->get_device_properties();
-
-      // If we need to disable the built-in keyboard, we have to grab it.
-      if (device_properties &&
-          device_properties->get_is_built_in_keyboard().value_or(false) &&
-          need_to_disable_built_in_keyboard()) {
-        // Do nothing
-      } else {
-        unset_device_ungrabbable_temporarily_notification_message(entry->get_device_id());
-        return grabbable_state::state::ungrabbable_permanently;
-      }
-    }
-
     // ----------------------------------------
     // Ungrabbable while virtual_hid_device_service_client_ is not ready.
 
-    if (!is_virtual_hid_keyboard_ready_) {
+    if (!virtual_hid_devices_state_.get_virtual_hid_keyboard_ready()) {
       std::string message = "virtual_hid_keyboard is not ready. Please wait for a while.";
       logger_unique_filter_.warn(message);
       unset_device_ungrabbable_temporarily_notification_message(entry->get_device_id());
@@ -862,6 +879,7 @@ private:
     for (const auto& e : entries_) {
       if (auto device_properties = e.second->get_device_properties()) {
         if (device_properties->get_is_pointing_device().value_or(false) &&
+            e.second->get_event_origin() == event_origin::grabbed_device &&
             e.second->get_grabbed()) {
           return true;
         }
@@ -987,8 +1005,7 @@ private:
   std::shared_ptr<pqrs::karabiner::driverkit::virtual_hid_device_service::client> virtual_hid_device_service_client_;
 
   pqrs::dispatcher::extra::timer virtual_hid_device_service_check_timer_;
-  bool is_virtual_hid_keyboard_ready_;
-  bool is_virtual_hid_pointing_ready_;
+  virtual_hid_devices_state virtual_hid_devices_state_;
 
   std::vector<nod::scoped_connection> external_signal_connections_;
 

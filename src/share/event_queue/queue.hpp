@@ -29,6 +29,7 @@ public:
                           const class event& event,
                           event_type event_type,
                           const class event& original_event,
+                          event_origin event_origin,
                           state state,
                           bool lazy = false,
                           validity validity = validity::valid) {
@@ -40,6 +41,7 @@ public:
                          event,
                          event_type,
                          original_event,
+                         event_origin,
                          state,
                          lazy,
                          validity);
@@ -136,6 +138,9 @@ public:
     if (auto properties = event.get_if<pqrs::osx::system_preferences::properties>()) {
       manipulator_environment_.set_system_preferences_properties(*properties);
     }
+    if (auto state = event.get_if<virtual_hid_devices_state>()) {
+      manipulator_environment_.set_virtual_hid_devices_state(*state);
+    }
     if (auto configuration = event.get_if<core_configuration::details::virtual_hid_keyboard>()) {
       manipulator_environment_.set_virtual_hid_keyboard_country_code(configuration->get_country_code());
     }
@@ -147,6 +152,7 @@ public:
                        entry.get_event(),
                        entry.get_event_type(),
                        entry.get_original_event(),
+                       entry.get_event_origin(),
                        entry.get_state(),
                        entry.get_lazy(),
                        entry.get_validity());

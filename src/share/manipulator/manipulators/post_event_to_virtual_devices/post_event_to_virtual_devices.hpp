@@ -200,7 +200,7 @@ public:
                                                       *mouse_key,
                                                       output_event_queue,
                                                       front_input_event.get_event_time_stamp().get_time_stamp());
-            } else {
+            } else if (front_input_event.get_event_type() == event_type::key_up) {
               mouse_key_handler_->erase_mouse_key(front_input_event.get_device_id(),
                                                   *mouse_key,
                                                   output_event_queue,
@@ -249,6 +249,7 @@ public:
         case event_queue::event::type::pointing_device_event_from_event_tap:
         case event_queue::event::type::frontmost_application_changed:
         case event_queue::event::type::input_source_changed:
+        case event_queue::event::type::virtual_hid_devices_state_changed:
           // Do nothing
           break;
       }

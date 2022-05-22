@@ -175,52 +175,109 @@ public:
       }
     }
 
+    //
+    // Change keys which macOS will ignore.
+    //
+
     // Touch ID
     {
       try {
-        auto from_json = nlohmann::json::object({
-            {"consumer_key_code", "menu"},
-            {
-                "modifiers",
-                nlohmann::json::object({
-                    // Use `"mandatory": ["any"]` to ensure command+control+q will be send even if other modifiers (option,shift) are pressed.
-                    {"mandatory", nlohmann::json::array({"any"})},
-                }),
-            },
-        });
+        for (const auto& from_json : {
+                 nlohmann::json::object({
+                     // Touch ID
+                     {"consumer_key_code", "menu"},
+                 }),
+                 nlohmann::json::object({
+                     // Lock key on Magic Keyboard without Touch ID
+                     {"consumer_key_code", "al_terminal_lock_or_screensaver"},
+                 }),
+             }) {
+          std::vector<manipulator::to_event_definition> to_event_definitions;
 
-        std::vector<manipulator::to_event_definition> to_event_definitions;
+          to_event_definitions.emplace_back(nlohmann::json::object({
+              {"consumer_key_code", "al_terminal_lock_or_screensaver"},
+          }));
 
-        // iokit_power_management_sleep_system
-        to_event_definitions.emplace_back(nlohmann::json::object({
-            {
-                "software_function",
-                nlohmann::json::object({
-                    {"iokit_power_management_sleep_system", nlohmann::json::object()},
-                }),
-            },
-        }));
+          auto manipulator = std::make_shared<manipulator::manipulators::basic::basic>(manipulator::manipulators::basic::from_event_definition(from_json),
+                                                                                       to_event_definitions);
 
-        // command+control+q (Lock screen)
-        to_event_definitions.emplace_back(nlohmann::json::object({
-            {"key_code", "q"},
-            {"modifiers", nlohmann::json::array({
-                              "left_command",
-                              "left_control",
-                          })},
-        }));
-
-        auto manipulator = std::make_shared<manipulator::manipulators::basic::basic>(manipulator::manipulators::basic::from_event_definition(from_json),
-                                                                                     to_event_definitions);
-
-        manipulator->push_back_condition(krbn::manipulator::manipulator_factory::make_frontmost_application_unless_condition({
-            "^com\\.apple\\.loginwindow$",
-        }));
-
-        manipulator_manager_->push_back_manipulator(std::shared_ptr<manipulator::manipulators::base>(manipulator));
+          manipulator_manager_->push_back_manipulator(std::shared_ptr<manipulator::manipulators::base>(manipulator));
+        }
 
       } catch (const std::exception& e) {
         logger::get_logger()->error(e.what());
+      }
+    }
+
+    // Application launch buttons
+    {
+      nlohmann::json data = nlohmann::json::array();
+
+      data.push_back(nlohmann::json::object({
+          {"from", nlohmann::json::object({{"consumer_key_code", "al_word_processor"}})},
+          {"to", nlohmann::json::object({{"shell_command", "open -a 'Pages.app'"}})},
+      }));
+
+      data.push_back(nlohmann::json::object({
+          {"from", nlohmann::json::object({{"consumer_key_code", "al_text_editor"}})},
+          {"to", nlohmann::json::object({{"shell_command", "open -a 'TextEdit.app'"}})},
+      }));
+
+      data.push_back(nlohmann::json::object({
+          {"from", nlohmann::json::object({{"consumer_key_code", "al_spreadsheet"}})},
+          {"to", nlohmann::json::object({{"shell_command", "open -a 'Numbers.app'"}})},
+      }));
+
+      data.push_back(nlohmann::json::object({
+          {"from", nlohmann::json::object({{"consumer_key_code", "al_presentation_app"}})},
+          {"to", nlohmann::json::object({{"shell_command", "open -a 'Keynote.app'"}})},
+      }));
+
+      data.push_back(nlohmann::json::object({
+          {"from", nlohmann::json::object({{"consumer_key_code", "al_email_reader"}})},
+          {"to", nlohmann::json::object({{"shell_command", "open -a 'Mail.app'"}})},
+      }));
+
+      data.push_back(nlohmann::json::object({
+          {"from", nlohmann::json::object({{"consumer_key_code", "al_calculator"}})},
+          {"to", nlohmann::json::object({{"shell_command", "open -a 'Calculator.app'"}})},
+      }));
+
+      data.push_back(nlohmann::json::object({
+          {"from", nlohmann::json::object({{"consumer_key_code", "al_local_machine_browser"}})},
+          {"to", nlohmann::json::object({{"shell_command", "open -a 'Finder.app'"}})},
+      }));
+
+      data.push_back(nlohmann::json::object({
+          {"from", nlohmann::json::object({{"consumer_key_code", "al_internet_browser"}})},
+          {"to", nlohmann::json::object({{"shell_command", "open -a 'Safari.app'"}})},
+      }));
+
+      data.push_back(nlohmann::json::object({
+          {"from", nlohmann::json::object({{"consumer_key_code", "al_dictionary"}})},
+          {"to", nlohmann::json::object({{"shell_command", "open -a 'Dictionary.app'"}})},
+      }));
+
+      for (const auto& d : data) {
+        auto from_json = d["from"];
+        from_json["modifiers"]["mandatory"] = nlohmann::json::array({"any"});
+
+        auto to_json = d["to"];
+
+        std::vector<manipulator::to_event_definition> to_event_definitions;
+        to_event_definitions.emplace_back(to_json);
+
+        try {
+          auto manipulator = std::make_shared<manipulator::manipulators::basic::basic>(manipulator::manipulators::basic::from_event_definition(from_json),
+                                                                                       to_event_definitions);
+          manipulator_manager_->push_back_manipulator(std::shared_ptr<manipulator::manipulators::base>(manipulator));
+
+        } catch (const pqrs::json::unmarshal_error& e) {
+          logger::get_logger()->error(fmt::format("karabiner.json error: {0}", e.what()));
+
+        } catch (const std::exception& e) {
+          logger::get_logger()->error(e.what());
+        }
       }
     }
   }

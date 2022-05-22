@@ -112,6 +112,10 @@ void libkrbn_launch_multitouch_extension(void) {
   krbn::application_launcher::launch_multitouch_extension(false);
 }
 
+void libkrbn_launch_uninstaller(void) {
+  krbn::application_launcher::launch_uninstaller();
+}
+
 bool libkrbn_driver_running(void) {
   return pqrs::karabiner::driverkit::virtual_hid_device_service::utility::driver_running();
 }
@@ -128,11 +132,10 @@ bool libkrbn_system_core_configuration_file_path_exists(void) {
   return pqrs::filesystem::exists(krbn::constants::get_system_core_configuration_file_path());
 }
 
-bool libkrbn_is_momentary_switch_event(int32_t usage_page, int32_t usage) {
-  return krbn::momentary_switch_event(
-             pqrs::hid::usage_page::value_t(usage_page),
-             pqrs::hid::usage::value_t(usage))
-      .valid();
+bool libkrbn_is_momentary_switch_event_target(int32_t usage_page, int32_t usage) {
+  return krbn::momentary_switch_event::target(
+      pqrs::hid::usage_page::value_t(usage_page),
+      pqrs::hid::usage::value_t(usage));
 }
 
 bool libkrbn_is_modifier_flag(int32_t usage_page, int32_t usage) {
@@ -296,6 +299,15 @@ const char* libkrbn_complex_modifications_assets_manager_get_file_title(size_t i
     }
   }
   return nullptr;
+}
+
+time_t libkrbn_complex_modifications_assets_manager_get_file_last_write_time(size_t index) {
+  if (libkrbn_components_manager_) {
+    if (auto m = libkrbn_components_manager_->get_complex_modifications_assets_manager()) {
+      return m->get_file_last_write_time(index);
+    }
+  }
+  return 0;
 }
 
 size_t libkrbn_complex_modifications_assets_manager_get_rules_size(size_t file_index) {
@@ -471,6 +483,22 @@ void libkrbn_disable_notification_message_json_file_monitor(void) {
   if (libkrbn_components_manager_) {
     libkrbn_components_manager_->disable_notification_message_json_file_monitor();
   }
+}
+
+const char* libkrbn_get_notification_message_body(void) {
+  static std::string message;
+
+  std::ifstream input(krbn::constants::get_notification_message_file_path());
+  if (input) {
+    try {
+      auto json = krbn::json_utility::parse_jsonc(input);
+      message = json["body"].get<std::string>();
+    } catch (const std::exception& e) {
+      message = "";
+    }
+  }
+
+  return message.c_str();
 }
 
 //

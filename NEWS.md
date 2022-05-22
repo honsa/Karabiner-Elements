@@ -3,12 +3,48 @@
 ## Beta
 
 -   💥 Breaking changes
+    -   The following modifier flags and manipulators are now canceled even for events from devices not grabbed by Karabiner-Elements, e.g. mouse clicks.
+        -   `sticky modifiers`
+        -   `to_if_alone`
+        -   `to_if_held_down`
+        -   `to_delayed_action`
+-   ⚡️ Improvements
+    -   Preferences Window is rewritten in SwiftUI.
+    -   Sparkle Framework has been updated.
+
+## Karabiner-Elements 14.4.0
+
+-   [📦 Download](https://github.com/pqrs-org/Karabiner-Elements/releases/download/v14.4.0/Karabiner-Elements-14.4.0.dmg)
+-   📅 Release date
+    -   Mar 1, 2022
+-   🐛 Bug Fixes
+    -   Fixed an issue that NotificationWindow causes high CPU usage in some environments.
+
+## Karabiner-Elements 14.3.0
+
+-   [📦 Download](https://github.com/pqrs-org/Karabiner-Elements/releases/download/v14.3.0/Karabiner-Elements-14.3.0.dmg)
+-   📅 Release date
+    -   Nov 20, 2021
+-   ⚡️ Improvements
+    -   Added System Extensions tab to EventViewer.
+    -   Added a workaround for macOS's ioreg command issue that consumes high CPU usage on macOS Monterey.
+
+## Karabiner-Elements 14.2.0
+
+-   [📦 Download](https://github.com/pqrs-org/Karabiner-Elements/releases/download/v14.2.0/Karabiner-Elements-14.2.0.dmg)
+-   📅 Release date
+    -   Nov 3, 2021
+-   💥 Breaking changes
     -   macOS 10.15 support has been dropped.
 -   ✨ New Features
     -   Supported Touch ID on Magic Keyboard.
+    -   Supported application launcher keys (Mail, Browser, Calculator, etc.) which are belong to HID Consumer Usage Page and Application Launch Buttons Usage.
     -   Add new features for writing your own settings:
         -   Added [`software_function.iokit_power_management_sleep_system`](https://karabiner-elements.pqrs.org/docs/json/complex-modifications-manipulator-definition/to/software_function/iokit_power_management_sleep_system/).
+-   🐛 Bug Fixes
+    -   Fixed an issue that an alert window appears in an incorrect position on macOS 12 Monterey.
 -   ⚡️ Improvements
+    -   Update application icons. (Thanks to Kouji TAMURA)
     -   EventViewer is rewritten in SwiftUI.
 
 ## Karabiner-Elements 13.7.0

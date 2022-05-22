@@ -7,7 +7,7 @@ Karabiner-Elements is a powerful utility for keyboard customization on macOS Sie
 
 ## Download
 
-You can download Karabiner-Elements from [official site](https://karabiner-elements.pqrs.org/).
+You can download Karabiner-Elements from the [official site](https://karabiner-elements.pqrs.org/).
 
 ### Old releases
 
@@ -24,7 +24,7 @@ You can download previous versions of Karabiner-Elements from [here](https://kar
 
 ## Donations
 
-If you would like to contribute financially to the development of Karabiner Elements, donations can be made via <https://karabiner-elements.pqrs.org/docs/pricing/>
+If you would like to contribute financially to the development of Karabiner-Elements, donations can be made via <https://karabiner-elements.pqrs.org/docs/pricing/>
 
 ---
 
@@ -34,10 +34,8 @@ If you would like to contribute financially to the development of Karabiner Elem
 
 System requirements to build Karabiner-Elements:
 
--   macOS 11+
--   Xcode 13+
-    -   Xcode for macOS Monterey is required.
-    -   Xcode 13 RC and Xcode 13.0 are not satisfy this requirements. As of Sep 2021, use Xcode 13 beta 5 at Sep 2021.
+-   macOS 12+
+-   Xcode 13.3+
 -   Command Line Tools for Xcode (`xcode-select --install`)
 -   xz (`brew install xz`)
 -   [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
@@ -45,7 +43,7 @@ System requirements to build Karabiner-Elements:
 
 #### Steps
 
-1.  Get source code by executing a following command in Terminal.app.
+1.  Get source code by executing the following command in Terminal.app.
 
     ```shell
     git clone --depth 1 https://github.com/pqrs-org/Karabiner-Elements.git
@@ -95,7 +93,7 @@ System requirements to build Karabiner-Elements:
         export PQRS_ORG_INSTALLER_CODE_SIGN_IDENTITY=C86BB5F7830071C7B0B07D168A9A9375CC2D02C5
         ```
 
-3.  Build a package by executing a following command in Terminal.app.
+3.  Build a package by executing the following command in Terminal.app.
 
     ```shell
     make package
@@ -103,14 +101,14 @@ System requirements to build Karabiner-Elements:
 
     The `make` script will create a redistributable **Karabiner-Elements-VERSION.dmg** in the current directory.
 
-#### Note: About pre-built binaries in the source tree
+#### Note about pre-built binaries in the source tree
 
 Karabiner-Elements uses some pre-built binaries in the source tree.
 
 -   `src/vendor/Karabiner-DriverKit-VirtualHIDDevice/dist/Karabiner-DriverKit-VirtualHIDDevice-*.dmg`
 -   `Sparkle.framework` in `src/apps/PreferencesWindow/`
 
-Above `make package` command does not rebuild these binaries.<br/>
+The above `make package` command does not rebuild these binaries.<br/>
 (These binaries will be copied in the distributed package.)
 
 If you want to rebuild these binaries, you have to build them manually.<br/>

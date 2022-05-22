@@ -1,41 +1,57 @@
 import SwiftUI
 
+class InputMonitoringAlertData: ObservableObject {
+  public static let shared = InputMonitoringAlertData()
+
+  @Published var showing = false
+}
+
 struct InputMonitoringAlertView: View {
-    var body: some View {
-        VStack(alignment: .center, spacing: 20.0) {
-            Label("EventViewer Alert", systemImage: "exclamationmark.triangle.fill").font(.system(size: 24))
+  let window: NSWindow?
 
-            Text("EventViewer requires Input Monitoring permission.\nYou have to allow Karabiner-EventViewer on Security & Privacy System Preferences.")
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+  var body: some View {
+    VStack(alignment: .center, spacing: 20.0) {
+      Label(
+        "Please allow Karabiner-EventViewer to monitor input events",
+        systemImage: "lightbulb"
+      )
+      .font(.system(size: 24))
 
-            Button(action: { openSystemPreferencesSecurity() }) {
-                Label("Open Security & Privacy System Preferences...", systemImage: "arrow.forward.circle.fill")
-            }
+      VStack(spacing: 0) {
+        Text("Karabiner-EventViewer requires Input Monitoring permission to show input events.")
+        Text("Please allow on Security & Privacy System Preferences.")
+      }
 
-            Image(decorative: "input_monitoring")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(height: 200.0)
-                .border(Color.gray, width: /*@START_MENU_TOKEN@*/1/*@END_MENU_TOKEN@*/)
-        }
-        .frame(width: 600)
-        .padding()
+      Button(action: { openSystemPreferencesSecurity() }) {
+        Label(
+          "Open Security & Privacy System Preferences...",
+          systemImage: "arrow.forward.circle.fill")
+      }
+
+      Image(decorative: "input_monitoring")
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(height: 300.0)
+        .border(Color.gray, width: 1)
     }
+    .frame(width: 800)
+    .padding()
+  }
 
-    func openSystemPreferencesSecurity() {
-        NSApplication.shared.miniaturizeAll(self)
+  func openSystemPreferencesSecurity() {
+    let url = URL(
+      string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!
+    NSWorkspace.shared.open(url)
 
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!
-        NSWorkspace.shared.open(url)
-    }
+    window?.orderBack(self)
+  }
 }
 
 struct InputMonitoringAlertView_Previews: PreviewProvider {
-    static var previews: some View {
-        Group {
-            InputMonitoringAlertView()
-                .previewLayout(.sizeThatFits)
-        }
+  static var previews: some View {
+    Group {
+      InputMonitoringAlertView(window: nil)
+        .previewLayout(.sizeThatFits)
     }
+  }
 }
