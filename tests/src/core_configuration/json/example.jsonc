@@ -1,7 +1,8 @@
 {
     "global": {
         "check_for_updates_on_startup": false,
-        "show_in_menu_bar": false
+        "show_in_menu_bar": false,
+        "unsafe_ui": true
     },
     "profiles": [
         {
@@ -181,7 +182,8 @@
                                 }
                             ]
                         }
-                    ]
+                    ],
+                    "treat_as_built_in_keyboard": true
                 },
                 {
                     "identifiers": {

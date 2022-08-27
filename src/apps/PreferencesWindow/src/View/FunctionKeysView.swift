@@ -20,7 +20,7 @@ struct FunctionKeysView: View {
       HStack {
         Toggle(isOn: $systemPreferences.useFkeysAsStandardFunctionKeys) {
           Text("Use all F1, F2, etc. keys as standard function keys")
-        }
+        }.switchToggleStyle()
 
         Spacer()
       }
@@ -47,6 +47,9 @@ struct FunctionKeysView: View {
             HStack {
               Text(fnFunctionKey.fromEntry.label)
                 .frame(width: 40)
+
+              Image(systemName: "arrow.forward")
+                .padding(.horizontal, 6.0)
 
               SimpleModificationPickerView(
                 categories: selectedDevice == nil

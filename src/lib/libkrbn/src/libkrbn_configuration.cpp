@@ -2,6 +2,8 @@
 #include "libkrbn/impl/libkrbn_cpp.hpp"
 
 namespace {
+std::string save_error_message;
+
 krbn::core_configuration::details::simple_modifications* find_simple_modifications(libkrbn_core_configuration* p,
                                                                                    const libkrbn_device_identifiers* device_identifiers) {
   if (auto c = reinterpret_cast<libkrbn_core_configuration_class*>(p)) {
@@ -35,9 +37,18 @@ void libkrbn_core_configuration_terminate(libkrbn_core_configuration** p) {
 }
 
 void libkrbn_core_configuration_save(libkrbn_core_configuration* p) {
-  if (auto c = reinterpret_cast<libkrbn_core_configuration_class*>(p)) {
-    c->get_core_configuration().sync_save_to_file();
+  try {
+    if (auto c = reinterpret_cast<libkrbn_core_configuration_class*>(p)) {
+      c->get_core_configuration().sync_save_to_file();
+    }
+    save_error_message.clear();
+  } catch (const std::exception& e) {
+    save_error_message = e.what();
   }
+}
+
+const char* libkrbn_core_configuration_get_save_error_message(void) {
+  return save_error_message.c_str();
 }
 
 bool libkrbn_core_configuration_get_global_configuration_check_for_updates_on_startup(libkrbn_core_configuration* p) {
@@ -76,6 +87,19 @@ bool libkrbn_core_configuration_get_global_configuration_show_profile_name_in_me
 void libkrbn_core_configuration_set_global_configuration_show_profile_name_in_menu_bar(libkrbn_core_configuration* p, bool value) {
   if (auto c = reinterpret_cast<libkrbn_core_configuration_class*>(p)) {
     return c->get_core_configuration().get_global_configuration().set_show_profile_name_in_menu_bar(value);
+  }
+}
+
+bool libkrbn_core_configuration_get_global_configuration_unsafe_ui(libkrbn_core_configuration* p) {
+  if (auto c = reinterpret_cast<libkrbn_core_configuration_class*>(p)) {
+    return c->get_core_configuration().get_global_configuration().get_unsafe_ui();
+  }
+  return false;
+}
+
+void libkrbn_core_configuration_set_global_configuration_unsafe_ui(libkrbn_core_configuration* p, bool value) {
+  if (auto c = reinterpret_cast<libkrbn_core_configuration_class*>(p)) {
+    return c->get_core_configuration().get_global_configuration().set_unsafe_ui(value);
   }
 }
 
@@ -419,6 +443,28 @@ void libkrbn_core_configuration_set_selected_profile_device_manipulate_caps_lock
     if (device_identifiers) {
       auto identifiers = libkrbn_cpp::make_device_identifiers(*device_identifiers);
       c->get_core_configuration().get_selected_profile().set_device_manipulate_caps_lock_led(identifiers, value);
+    }
+  }
+}
+
+bool libkrbn_core_configuration_get_selected_profile_device_treat_as_built_in_keyboard(libkrbn_core_configuration* p,
+                                                                                       const libkrbn_device_identifiers* device_identifiers) {
+  if (auto c = reinterpret_cast<libkrbn_core_configuration_class*>(p)) {
+    if (device_identifiers) {
+      auto identifiers = libkrbn_cpp::make_device_identifiers(*device_identifiers);
+      return c->get_core_configuration().get_selected_profile().get_device_treat_as_built_in_keyboard(identifiers);
+    }
+  }
+  return false;
+}
+
+void libkrbn_core_configuration_set_selected_profile_device_treat_as_built_in_keyboard(libkrbn_core_configuration* p,
+                                                                                       const libkrbn_device_identifiers* device_identifiers,
+                                                                                       bool value) {
+  if (auto c = reinterpret_cast<libkrbn_core_configuration_class*>(p)) {
+    if (device_identifiers) {
+      auto identifiers = libkrbn_cpp::make_device_identifiers(*device_identifiers);
+      c->get_core_configuration().get_selected_profile().set_device_treat_as_built_in_keyboard(identifiers, value);
     }
   }
 }

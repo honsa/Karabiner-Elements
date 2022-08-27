@@ -11,11 +11,19 @@ private func callback(
 
   let obj: SystemPreferences! = unsafeBitCast(context, to: SystemPreferences.self)
   let systemPreferencesPropertiesCopy = systemPreferencesProperties!.pointee
-  obj.updateProperties(systemPreferencesPropertiesCopy)
+  DispatchQueue.main.async { [weak obj, systemPreferencesPropertiesCopy] in
+    guard let obj = obj else { return }
+
+    var properties = systemPreferencesPropertiesCopy
+    obj.updateProperties(&properties)
+  }
 }
 
 final class SystemPreferences: ObservableObject {
   static let shared = SystemPreferences()
+
+  // This variable will be used in VirtualKeyboardView in order to show "log out required" message.
+  @Published var keyboardTypeChanged = false
 
   private var didSetEnabled = false
 
@@ -27,11 +35,22 @@ final class SystemPreferences: ObservableObject {
   }
 
   public func updateProperties(
-    _ systemPreferencesProperties: libkrbn_system_preferences_properties
+    _ systemPreferencesProperties: inout libkrbn_system_preferences_properties
   ) {
     didSetEnabled = false
 
-    useFkeysAsStandardFunctionKeys = systemPreferencesProperties.use_fkeys_as_standard_function_keys
+    useFkeysAsStandardFunctionKeys =
+      systemPreferencesProperties.use_fkeys_as_standard_function_keys
+
+    let keyboardTypesSize = libkrbn_system_preferences_properties_get_keyboard_types_size()
+    withUnsafePointer(to: &(systemPreferencesProperties.keyboard_types.0)) {
+      keyboardTypesPtr in
+      var newKeyboardTypes: [LibKrbn.KeyboardType] = []
+      for i in 0..<keyboardTypesSize {
+        newKeyboardTypes.append(LibKrbn.KeyboardType(i, Int(keyboardTypesPtr[i])))
+      }
+      keyboardTypes = newKeyboardTypes
+    }
 
     didSetEnabled = true
   }
@@ -43,6 +62,18 @@ final class SystemPreferences: ObservableObject {
           UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain) ?? [:]
         domain["com.apple.keyboard.fnState"] = useFkeysAsStandardFunctionKeys
         UserDefaults.standard.setPersistentDomain(domain, forName: UserDefaults.globalDomain)
+      }
+    }
+  }
+
+  @Published var keyboardTypes: [LibKrbn.KeyboardType] = [] {
+    didSet {
+      if didSetEnabled {
+        keyboardTypes.forEach { keyboardType in
+          LibKrbn.GrabberClient.shared.setKeyboardType(keyboardType)
+        }
+
+        keyboardTypeChanged = true
       }
     }
   }

@@ -377,6 +377,11 @@ void libkrbn_disable_system_preferences_monitor(void) {
   }
 }
 
+size_t libkrbn_system_preferences_properties_get_keyboard_types_size(void) {
+  libkrbn_system_preferences_properties p;
+  return std::size(p.keyboard_types);
+}
+
 //
 // connected_devices_monitor
 //
@@ -579,6 +584,14 @@ void libkrbn_enable_grabber_client(libkrbn_grabber_client_connected_callback con
 void libkrbn_disable_grabber_client(void) {
   if (libkrbn_components_manager_) {
     libkrbn_components_manager_->disable_grabber_client();
+  }
+}
+
+void libkrbn_grabber_client_async_set_keyboard_type(uint64_t country_code, uint64_t keyboard_type) {
+  if (libkrbn_components_manager_) {
+    libkrbn_components_manager_->grabber_client_async_set_keyboard_type(
+        pqrs::hid::country_code::value_t(country_code),
+        pqrs::osx::iokit_keyboard_type::value_t(keyboard_type));
   }
 }
 

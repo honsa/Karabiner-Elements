@@ -2,6 +2,38 @@
 
 ## Beta
 
+-   ✨ New Features
+    -   Supported Remote control buttons. (menu arrows buttons, color buttons)
+    -   The `is_built_in_keyboard` has been added into `device_if` and `device_unless`.
+    -   The `device_exists_if` and `device_exists_unless` has been added into `conditions`.
+-   🐛 Bug Fixes
+    -   Fixed an issue that the ignored device's modifier keys are not ignored properly.
+
+## Karabiner-Elements 14.8.0
+
+-   [📦 Download](https://github.com/pqrs-org/Karabiner-Elements/releases/download/v14.8.0/Karabiner-Elements-14.8.0.dmg)
+-   📅 Release date
+    -   Aug 11, 2022
+-   ✨ New Features
+    -   Add `Enable unsafe configuration` feature into Preferences > Pro tab.
+-   🐛 Bug Fixes
+    -   Fixed an issue that the built-in keyboard is not be treated as the built-in keyboard if the keyboard is connected via SPI (Serial Peripheral Interface), such as M2 MacBook Air.
+
+## Karabiner-Elements 14.6.0
+
+-   [📦 Download](https://github.com/pqrs-org/Karabiner-Elements/releases/download/v14.6.0/Karabiner-Elements-14.6.0.dmg)
+-   📅 Release date
+    -   Jul 31, 2022
+-   ✨ New Features
+    -   `Treat as a built-in keyboard` setting has been added into Devices configuration. It works with "Disable the built-in keyboard" feature.
+-   🐛 Bug Fixes
+    -   Fixed an issue that "Disable the built-in keyboard" feature does not work if the built-in keyboard is not included in the event modification target devices.
+
+## Karabiner-Elements 14.5.0
+
+-   [📦 Download](https://github.com/pqrs-org/Karabiner-Elements/releases/download/v14.5.0/Karabiner-Elements-14.5.0.dmg)
+-   📅 Release date
+    -   Jul 17, 2022
 -   💥 Breaking changes
     -   The following modifier flags and manipulators are now canceled even for events from devices not grabbed by Karabiner-Elements, e.g. mouse clicks.
         -   `sticky modifiers`
@@ -9,7 +41,9 @@
         -   `to_if_held_down`
         -   `to_delayed_action`
 -   ⚡️ Improvements
+    -   Improved behavior the sticky modifiers when used together with the built-in trackpad. (Thanks to @quarkw)
     -   Preferences Window is rewritten in SwiftUI.
+    -   `set_variable` now supports bool and string value.
     -   Sparkle Framework has been updated.
 
 ## Karabiner-Elements 14.4.0

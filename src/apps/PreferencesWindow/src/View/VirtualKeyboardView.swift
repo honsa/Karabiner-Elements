@@ -1,10 +1,97 @@
 import SwiftUI
 
 struct VirtualKeyboardView: View {
-  @ObservedObject var settings = LibKrbn.Settings.shared
+  @ObservedObject private var settings = LibKrbn.Settings.shared
+  @ObservedObject private var systemPreferences = SystemPreferences.shared
+  @ObservedObject private var grabberClient = LibKrbn.GrabberClient.shared
 
   var body: some View {
     VStack(alignment: .leading, spacing: 24.0) {
+      GroupBox(label: Text("Keyboard type")) {
+        VStack(alignment: .leading, spacing: 6.0) {
+          HStack {
+            Spacer()
+
+            if !systemPreferences.keyboardTypeChanged {
+              VStack {
+                Label(
+                  "Log out will be required when you changed keyboard type (ANSI, ISO or JIS) from the drop-down list",
+                  systemImage: "lightbulb"
+                )
+              }
+              .padding()
+              .foregroundColor(Color.warningForeground)
+              .background(Color.warningBackground)
+            } else {
+              VStack {
+                Label(
+                  "Log out is required to apply keyboard type changes",
+                  systemImage: "lightbulb"
+                )
+              }
+              .padding()
+              .foregroundColor(Color.errorForeground)
+              .background(Color.errorBackground)
+            }
+          }
+
+          // Use `ScrollView` instead of `List` to avoid `AttributeGraph: cycle detected through attribute` error.
+          ScrollView {
+            ForEach($systemPreferences.keyboardTypes) { $keyboardType in
+              HStack {
+                Button(action: {
+                  settings.virtualHIDKeyboardCountryCode = keyboardType.countryCode
+                }) {
+                  HStack {
+                    HStack {
+                      if settings.virtualHIDKeyboardCountryCode == keyboardType.countryCode {
+                        Image(systemName: "circle.circle.fill")
+                      } else {
+                        Image(systemName: "circle")
+                      }
+                    }
+                    .foregroundColor(.accentColor)
+
+                    Text("Country code: \(keyboardType.countryCode)")
+                  }
+                }
+                .buttonStyle(.plain)
+
+                Picker("", selection: $keyboardType.keyboardType) {
+                  if keyboardType.keyboardType < 0 {
+                    Text("---").tag(-1)
+                  }
+                  Text("ANSI (North America, most of Asia and others)").tag(
+                    LibKrbn.KeyboardType.NamedType.ansi.rawValue)
+                  Text("ISO (Europe, Latin America, Middle-East and others)").tag(
+                    LibKrbn.KeyboardType.NamedType.iso.rawValue)
+                  Text("JIS (Japanese)").tag(LibKrbn.KeyboardType.NamedType.jis.rawValue)
+                }.disabled(!grabberClient.enabled)
+
+                Spacer()
+              }
+            }
+          }
+
+          HStack {
+            VStack(alignment: .leading, spacing: 0.0) {
+              Text("Note:")
+              Text(
+                "The keyboard type configurations (ANSI, ISO, JIS) are shared by all of this Mac users."
+              )
+              Text("The country code selection is saved for each user.")
+            }
+
+            Spacer()
+          }
+          .padding()
+          .foregroundColor(Color.warningForeground)
+          .background(Color.warningBackground)
+        }
+        .padding(6.0)
+        .background(Color(NSColor.textBackgroundColor))
+      }
+
       GroupBox(label: Text("Mouse key")) {
         VStack(alignment: .leading, spacing: 12.0) {
           HStack {
@@ -30,36 +117,7 @@ struct VirtualKeyboardView: View {
             Toggle(isOn: $settings.virtualHIDKeyboardIndicateStickyModifierKeysState) {
               Text("Indicate sticky modifier keys state (Default: on)")
             }
-
-            Spacer()
-          }
-        }
-        .padding(6.0)
-      }
-
-      GroupBox(label: Text("Country code")) {
-        VStack(alignment: .leading, spacing: 12.0) {
-          VStack(alignment: .leading, spacing: 0) {
-            Text("You usually don't need to change the country code value.")
-            Text("")
-            Text("This value is related to the keyboard layout (ANSI, ISO and JIS) on macOS.")
-            Text(
-              "macOS remembers the chosen keyboard layout with vendor id, product id and country code of the device."
-            )
-            Text(
-              "If you are using other devices that has the same vendor id (0x16c0) and product id (0x27db), the keyboard layout is shared by the device and Karabiner-DriverKit-VirtualHIDKeyboard."
-            )
-            Text("In this case, you have to change the country code to avoid the conflict.")
-          }
-
-          HStack {
-            Text("Country code:")
-
-            IntTextField(
-              value: $settings.virtualHIDKeyboardCountryCode,
-              range: 0...255,
-              step: 1,
-              width: 50)
+            .switchToggleStyle()
 
             Spacer()
           }

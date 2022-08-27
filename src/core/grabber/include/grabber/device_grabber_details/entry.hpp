@@ -2,6 +2,7 @@
 
 #include "core_configuration/core_configuration.hpp"
 #include "device_properties.hpp"
+#include "device_utility.hpp"
 #include "event_queue.hpp"
 #include "hid_keyboard_caps_lock_led_state_manager.hpp"
 #include "iokit_utility.hpp"
@@ -58,17 +59,7 @@ public:
     // Update event_origin_
     //
 
-    auto old_event_origin = event_origin_;
     update_event_origin();
-    if (old_event_origin != event_origin_) {
-      logger::get_logger()->info("device_grabber_details::entry event_origin_ is updated. {0}: {1} -> {2}",
-                                 device_name_,
-                                 nlohmann::json(old_event_origin),
-                                 nlohmann::json(event_origin_));
-
-      // Ungrab device if event_origin is changed in order to change IOHIDDeviceOpen option (kIOHIDOptionsTypeSeizeDevice or kIOHIDOptionsTypeNone)
-      async_stop_queue_value_monitor();
-    }
 
     //
     // Update caps_lock_led_state_manager state
@@ -131,6 +122,8 @@ public:
 
   void set_disabled(bool value) {
     disabled_ = value;
+
+    update_event_origin();
   }
 
   event_origin get_event_origin(void) const {
@@ -155,17 +148,41 @@ public:
     return false;
   }
 
+  bool determine_is_built_in_keyboard(void) const {
+    if (auto c = core_configuration_.lock()) {
+      if (device_properties_) {
+        return device_utility::determine_is_built_in_keyboard(*c, *device_properties_);
+      }
+    }
+
+    return false;
+  }
+
   void async_start_queue_value_monitor(void) {
+    auto options = kIOHIDOptionsTypeSeizeDevice;
+    if (event_origin_ == event_origin::observed_device) {
+      options = kIOHIDOptionsTypeNone;
+    }
+
+    //
+    // Stop if already started with different options.
+    //
+
+    if (options != hid_queue_value_monitor_async_start_option_) {
+      async_stop_queue_value_monitor();
+    }
+
+    //
+    // Start
+    //
+
     if (hid_queue_value_monitor_) {
       if (!hid_queue_value_monitor_async_start_called_) {
         first_value_arrived_ = false;
         hid_queue_value_monitor_async_start_called_ = true;
       }
 
-      auto options = kIOHIDOptionsTypeSeizeDevice;
-      if (event_origin_ == event_origin::observed_device) {
-        options = kIOHIDOptionsTypeNone;
-      }
+      hid_queue_value_monitor_async_start_option_ = options;
 
       hid_queue_value_monitor_->async_start(options,
                                             std::chrono::milliseconds(1000));
@@ -214,10 +231,23 @@ private:
   }
 
   void update_event_origin(void) {
-    if (is_ignored_device()) {
-      event_origin_ = event_origin::observed_device;
-    } else {
+    auto old_event_origin = event_origin_;
+
+    if (disabled_) {
       event_origin_ = event_origin::grabbed_device;
+    } else {
+      if (is_ignored_device()) {
+        event_origin_ = event_origin::observed_device;
+      } else {
+        event_origin_ = event_origin::grabbed_device;
+      }
+    }
+
+    if (old_event_origin != event_origin_) {
+      logger::get_logger()->info("device_grabber_details::entry event_origin_ is updated. {0}: {1} -> {2}",
+                                 device_name_,
+                                 nlohmann::json(old_event_origin),
+                                 nlohmann::json(event_origin_));
     }
   }
 
@@ -247,6 +277,7 @@ private:
 
   std::shared_ptr<pqrs::osx::iokit_hid_queue_value_monitor> hid_queue_value_monitor_;
   bool hid_queue_value_monitor_async_start_called_;
+  std::optional<IOOptionBits> hid_queue_value_monitor_async_start_option_;
   bool first_value_arrived_;
 
   std::shared_ptr<hid_keyboard_caps_lock_led_state_manager> caps_lock_led_state_manager_;

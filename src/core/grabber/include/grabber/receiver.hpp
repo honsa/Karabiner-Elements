@@ -156,10 +156,19 @@ public:
               }
               break;
 
+            case operation_type::set_keyboard_type:
+              // `set_keyboard_type` requires root privileges.
+              pqrs::osx::system_preferences::user_defaults::set_keyboard_type(
+                  krbn::hid::product_id::karabiner_virtual_hid_keyboard,
+                  krbn::hid::vendor_id::karabiner_virtual_hid_device,
+                  json.at("country_code").get<pqrs::hid::country_code::value_t>(),
+                  json.at("keyboard_type").get<pqrs::osx::iokit_keyboard_type::value_t>());
+              break;
+
             case operation_type::set_variables:
               if (device_grabber_) {
                 for (const auto& [k, v] : json.at("variables").items()) {
-                  device_grabber_->async_post_set_variable_event(k, v.get<int>());
+                  device_grabber_->async_post_set_variable_event(k, v.get<manipulator_environment_variable>());
                 }
               }
               break;

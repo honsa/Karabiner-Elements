@@ -40,7 +40,6 @@ public:
     input_source_changed,
     system_preferences_properties_changed,
     virtual_hid_devices_state_changed,
-    virtual_hid_keyboard_configuration_changed,
   };
 
   using value_t = std::variant<momentary_switch_event,                                   // For type::momentary_switch_event
@@ -48,7 +47,7 @@ public:
                                int64_t,                                                  // For type::caps_lock_state_changed
                                std::string,                                              // For shell_command
                                std::vector<pqrs::osx::input_source_selector::specifier>, // For select_input_source
-                               std::pair<std::string, int>,                              // For set_variable
+                               std::pair<std::string, manipulator_environment_variable>, // For set_variable
                                notification_message,                                     // For set_notification_message
                                mouse_key,                                                // For mouse_key
                                std::pair<modifier_flag, sticky_modifier_type>,           // For sticky_modifier
@@ -58,7 +57,6 @@ public:
                                device_properties,                                        // For device_grabbed
                                pqrs::osx::system_preferences::properties,                // For system_preferences_properties_changed
                                virtual_hid_devices_state,                                // For virtual_hid_devices_state_changed
-                               core_configuration::details::virtual_hid_keyboard,        // For virtual_hid_keyboard_configuration_changed
                                std::monostate>;                                          // For virtual events
 
   event(void) : type_(type::none),
@@ -84,7 +82,7 @@ public:
           } else if (key == "input_source_specifiers") {
             result.value_ = value.get<std::vector<pqrs::osx::input_source_selector::specifier>>();
           } else if (key == "set_variable") {
-            result.value_ = value.get<std::pair<std::string, int>>();
+            result.value_ = value.get<std::pair<std::string, manipulator_environment_variable>>();
           } else if (key == "set_notification_message") {
             result.value_ = value.get<notification_message>();
           } else if (key == "mouse_key") {
@@ -101,8 +99,6 @@ public:
             result.value_ = value.get<pqrs::osx::system_preferences::properties>();
           } else if (key == "virtual_hid_devices_state") {
             result.value_ = value.get<virtual_hid_devices_state>();
-          } else if (key == "virtual_hid_keyboard_configuration") {
-            result.value_ = value.get<core_configuration::details::virtual_hid_keyboard>();
           }
         }
       }
@@ -204,12 +200,6 @@ public:
         }
         break;
 
-      case type::virtual_hid_keyboard_configuration_changed:
-        if (auto v = std::get_if<core_configuration::details::virtual_hid_keyboard>(&value_)) {
-          json["virtual_hid_keyboard_configuration"] = *v;
-        }
-        break;
-
       case type::stop_keyboard_repeat:
       case type::device_keys_and_pointing_buttons_are_released:
       case type::device_grabbed:
@@ -243,7 +233,7 @@ public:
     return e;
   }
 
-  static event make_set_variable_event(const std::pair<std::string, int>& pair) {
+  static event make_set_variable_event(const std::pair<std::string, manipulator_environment_variable>& pair) {
     event e;
     e.type_ = type::set_variable;
     e.value_ = pair;
@@ -340,13 +330,6 @@ public:
     return e;
   }
 
-  static event make_virtual_hid_keyboard_configuration_changed_event(const core_configuration::details::virtual_hid_keyboard& configuration) {
-    event e;
-    e.type_ = type::virtual_hid_keyboard_configuration_changed;
-    e.value_ = configuration;
-    return e;
-  }
-
   type get_type(void) const {
     return type_;
   }
@@ -400,10 +383,10 @@ public:
     return std::nullopt;
   }
 
-  std::optional<std::pair<std::string, int>> get_set_variable(void) const {
+  std::optional<std::pair<std::string, manipulator_environment_variable>> get_set_variable(void) const {
     try {
       if (type_ == type::set_variable) {
-        return std::get<std::pair<std::string, int>>(value_);
+        return std::get<std::pair<std::string, manipulator_environment_variable>>(value_);
       }
     } catch (std::bad_variant_access&) {
     }
@@ -489,7 +472,6 @@ private:
       TO_C_STRING(input_source_changed);
       TO_C_STRING(system_preferences_properties_changed);
       TO_C_STRING(virtual_hid_devices_state_changed);
-      TO_C_STRING(virtual_hid_keyboard_configuration_changed);
     }
 
 #undef TO_C_STRING
@@ -524,7 +506,6 @@ private:
     TO_TYPE(input_source_changed);
     TO_TYPE(system_preferences_properties_changed);
     TO_TYPE(virtual_hid_devices_state_changed);
-    TO_TYPE(virtual_hid_keyboard_configuration_changed);
 
 #undef TO_TYPE
 

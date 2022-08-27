@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct LogView: View {
-  @ObservedObject var logMessages = LogMessages.shared
+  @ObservedObject private var logMessages = LogMessages.shared
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12.0) {
@@ -27,6 +27,12 @@ struct LogView: View {
       }
       HStack {
         Text("Current time: \(logMessages.currentTimeString)")
+
+        Button(action: {
+          logMessages.addDivider()
+        }) {
+          Label("Add divider", systemImage: "scissors")
+        }
 
         Spacer()
 

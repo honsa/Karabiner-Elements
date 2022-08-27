@@ -423,6 +423,8 @@ public:
             e.second->set_core_configuration(core_configuration);
           }
 
+          manipulator_managers_connector_.set_manipulator_environment_core_configuration(core_configuration);
+
           logger_unique_filter_.reset();
           set_profile(core_configuration->get_selected_profile());
         }
@@ -506,7 +508,7 @@ public:
     });
   }
 
-  void async_post_set_variable_event(const std::string& name, int value) {
+  void async_post_set_variable_event(const std::string& name, const manipulator_environment_variable& value) {
     enqueue_to_dispatcher([this, name, value] {
       auto event = event_queue::event::make_set_variable_event(std::make_pair(name, value));
 
@@ -594,24 +596,6 @@ public:
     });
   }
 
-  void async_post_virtual_hid_keyboard_configuration_changed_event(void) {
-    enqueue_to_dispatcher([this] {
-      auto event = event_queue::event::make_virtual_hid_keyboard_configuration_changed_event(
-          profile_.get_virtual_hid_keyboard());
-      event_queue::entry entry(device_id(0),
-                               event_queue::event_time_stamp(pqrs::osx::chrono::mach_absolute_time_point()),
-                               event,
-                               event_type::single,
-                               event,
-                               event_origin::virtual_device,
-                               event_queue::state::virtual_event);
-
-      merged_input_event_queue_->push_back_entry(entry);
-
-      krbn_notification_center::get_instance().enqueue_input_event_arrived(*this);
-    });
-  }
-
 private:
   std::filesystem::path virtual_hid_device_service_client_socket_directory_path(void) const {
     // Note:
@@ -673,14 +657,14 @@ private:
       bool needs_regrab = false;
 
       for (const auto& e : event_queue->get_entries()) {
-        if (entry->get_event_origin() == event_origin::grabbed_device) {
-          if (auto ev = e.get_event().get_if<momentary_switch_event>()) {
-            needs_regrab |= probable_stuck_events_manager->update(
-                *ev,
-                e.get_event_type(),
-                e.get_event_time_stamp().get_time_stamp(),
-                device_state::grabbed);
-          }
+        if (auto ev = e.get_event().get_if<momentary_switch_event>()) {
+          needs_regrab |= probable_stuck_events_manager->update(
+              *ev,
+              e.get_event_type(),
+              e.get_event_time_stamp().get_time_stamp(),
+              entry->get_event_origin() == event_origin::grabbed_device
+                  ? device_state::grabbed
+                  : device_state::ungrabbed);
         }
 
         if (!entry->get_disabled()) {
@@ -794,6 +778,16 @@ private:
   grabbable_state::state make_grabbable_state(std::shared_ptr<device_grabber_details::entry> entry) const {
     if (!entry) {
       return grabbable_state::state::ungrabbable_permanently;
+    }
+
+    //
+    // The device is always grabbable if it is ignored devices
+    // because karabiner_grabber does not seize the device and do not affect existing hidd processing.
+    // (e.g. key repeat)
+    //
+
+    if (entry->get_event_origin() == event_origin::observed_device) {
+      return grabbable_state::state::grabbable;
     }
 
     // ----------------------------------------
@@ -914,13 +908,11 @@ private:
 
   void update_devices_disabled(void) {
     for (const auto& e : entries_) {
-      if (auto device_properties = e.second->get_device_properties()) {
-        if (device_properties->get_is_built_in_keyboard().value_or(false) &&
-            need_to_disable_built_in_keyboard()) {
-          e.second->set_disabled(true);
-        } else {
-          e.second->set_disabled(false);
-        }
+      if (e.second->determine_is_built_in_keyboard() &&
+          need_to_disable_built_in_keyboard()) {
+        e.second->set_disabled(true);
+      } else {
+        e.second->set_disabled(false);
       }
     }
   }
@@ -976,7 +968,6 @@ private:
     update_devices_disabled();
     async_grab_devices();
     async_post_system_preferences_properties_changed_event();
-    async_post_virtual_hid_keyboard_configuration_changed_event();
   }
 
   void update_complex_modifications_manipulators(void) {

@@ -11,48 +11,49 @@ struct ProfilesView: View {
         VStack(alignment: .leading, spacing: 0.0) {
           ForEach($settings.profiles) { $profile in
             HStack(alignment: .center, spacing: 0) {
-              Text(profile.name)
+              Button(action: {
+                settings.selectProfile(profile)
+              }) {
+                HStack {
+                  HStack {
+                    if profile.selected {
+                      Image(systemName: "circle.circle.fill")
+                    } else {
+                      Image(systemName: "circle")
+                    }
+                  }
+                  .foregroundColor(.accentColor)
+
+                  Text(profile.name)
+                }
+              }
+              .buttonStyle(.plain)
+
+              Spacer()
 
               Button(action: {
                 editingProfile = profile
                 showingSheet = true
               }) {
-                Label("Edit", systemImage: "pencil")
-              }
-              .padding(.leading, 12.0)
-
-              if !profile.selected {
-                Button(action: {
-                  settings.removeProfile(profile)
-                }) {
-                  Image(systemName: "trash.fill")
-                    .buttonLabelStyle()
-                }
-                .deleteButtonStyle()
-                .padding(.leading, 12.0)
+                Label("Edit", systemImage: "pencil.circle.fill")
               }
 
-              Spacer()
+              HStack {
+                Spacer()
 
-              if profile.selected {
-                Label("Selected", systemImage: "checkmark.square.fill")
-              } else {
-                Button(action: {
-                  settings.selectProfile(profile)
-                }) {
-                  Label("Select", systemImage: "square")
+                if !profile.selected {
+                  Button(action: {
+                    settings.removeProfile(profile)
+                  }) {
+                    Image(systemName: "trash.fill")
+                      .buttonLabelStyle()
+                  }
+                  .deleteButtonStyle()
                 }
               }
+              .frame(width: 60)
             }
-            .padding(12.0)
-            .overlay(
-              RoundedRectangle(cornerRadius: 8)
-                .stroke(
-                  Color(NSColor.selectedControlColor),
-                  lineWidth: profile.selected ? 3 : 0
-                )
-                .padding(2)
-            )
+            .padding(.vertical, 12.0)
 
             Divider()
           }

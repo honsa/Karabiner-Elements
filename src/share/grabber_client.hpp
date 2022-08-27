@@ -12,6 +12,7 @@
 #include <pqrs/filesystem.hpp>
 #include <pqrs/local_datagram.hpp>
 #include <pqrs/osx/frontmost_application_monitor.hpp>
+#include <pqrs/osx/iokit_types.hpp>
 #include <pqrs/osx/system_preferences.hpp>
 #include <pqrs/osx/system_preferences/extra/nlohmann_json.hpp>
 #include <unistd.h>
@@ -54,6 +55,7 @@ public:
                                                                client_socket_file_path_,
                                                                constants::get_local_datagram_buffer_size());
       client_->set_server_check_interval(std::chrono::milliseconds(3000));
+      client_->set_client_socket_check_interval(std::chrono::milliseconds(3000));
       client_->set_reconnect_interval(std::chrono::milliseconds(1000));
       client_->set_server_socket_file_path_resolver([this] {
         return find_grabber_socket_file_path();
@@ -206,10 +208,25 @@ public:
     });
   }
 
+  void async_set_keyboard_type(pqrs::hid::country_code::value_t country_code,
+                               pqrs::osx::iokit_keyboard_type::value_t keyboard_type) const {
+    enqueue_to_dispatcher([this, country_code, keyboard_type] {
+      nlohmann::json json{
+          {"operation_type", operation_type::set_keyboard_type},
+          {"country_code", country_code},
+          {"keyboard_type", keyboard_type},
+      };
+
+      if (client_) {
+        client_->async_send(nlohmann::json::to_msgpack(json));
+      }
+    });
+  }
+
   /**
    * @brief Set variables
    *
-   * @param variables nlohmann::json::object which type is {[key: string]: number}.
+   * @param variables nlohmann::json::object which type is {[key: string]: number|boolean|string}.
    * @param processed A callback which is called when the request is processed.
    *                  (When data is sent to grabber or error occurred)
    */

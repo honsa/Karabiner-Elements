@@ -32,6 +32,8 @@ extension LibKrbn {
     var libkrbnCoreConfiguration: UnsafeMutableRawPointer?
     private var didSetEnabled = false
 
+    @Published var saveErrorMessage = ""
+
     private init() {
       updateProperties(nil)
       didSetEnabled = true
@@ -55,6 +57,7 @@ extension LibKrbn {
     func save() {
       print("save")
       libkrbn_core_configuration_save(libkrbnCoreConfiguration)
+      saveErrorMessage = String(cString: libkrbn_core_configuration_get_save_error_message())
 
       updateProperties(libkrbnCoreConfiguration)
     }
@@ -119,6 +122,8 @@ extension LibKrbn {
       showProfileNameInMenuBar =
         libkrbn_core_configuration_get_global_configuration_show_profile_name_in_menu_bar(
           libkrbnCoreConfiguration)
+      unsafeUI = libkrbn_core_configuration_get_global_configuration_unsafe_ui(
+        libkrbnCoreConfiguration)
 
       updateSystemDefaultProfileExists()
 
@@ -575,6 +580,17 @@ extension LibKrbn {
           )
           save()
           libkrbn_launch_menu()
+        }
+      }
+    }
+
+    @Published var unsafeUI: Bool = false {
+      didSet {
+        if didSetEnabled {
+          libkrbn_core_configuration_set_global_configuration_unsafe_ui(
+            libkrbnCoreConfiguration, unsafeUI
+          )
+          save()
         }
       }
     }

@@ -1,5 +1,13 @@
-#include "test_runner.hpp"
+#include "device_exists_test.hpp"
+#include "errors_test.hpp"
+#include "manipulator_conditions_test.hpp"
 
-int main(int argc, char* argv[]) {
-  return run_tests(argc, argv);
+int main(void) {
+  auto scoped_dispatcher_manager = krbn::dispatcher_utility::initialize_dispatchers();
+
+  run_errors_test();
+  run_manipulator_conditions_test();
+  run_device_exists_test();
+
+  return 0;
 }

@@ -96,13 +96,14 @@ private func callback(
     // entry.code
     //
 
-    if UserSettings.shared.showHex {
-      entry.usagePage = String(format: "0x%02x", usagePage)
-      entry.usage = String(format: "0x%02x", usage)
-    } else {
-      entry.usagePage = String(format: "%d", usagePage)
-      entry.usage = String(format: "%d", usage)
-    }
+    entry.usagePage = String(
+      format: "%d (0x%04x)",
+      usagePage,
+      usagePage)
+    entry.usage = String(
+      format: "%d (0x%04x)",
+      usage,
+      usage)
 
     //
     // Handle unknown events
@@ -169,21 +170,6 @@ private func callback(
     //
 
     obj.append(entry)
-
-    //
-    // simpleModificationJsonString
-    //
-
-    libkrbn_get_simple_modification_json_string(&buffer, buffer.count, usagePage, usage)
-    let simpleModificationJsonString = String(cString: buffer)
-
-    if simpleModificationJsonString != "" {
-      obj.simpleModificationJsonString = simpleModificationJsonString
-
-      libkrbn_get_momentary_switch_event_usage_name(&buffer, buffer.count, usagePage, usage)
-      let usageName = String(cString: buffer)
-      obj.addSimpleModificationButtonText = "Add \(usageName) to Karabiner-Elements"
-    }
   }
 }
 
@@ -204,15 +190,13 @@ public class EventHistory: ObservableObject {
   public static let shared = EventHistory()
 
   // Keep maxCount small since too many entries causes performance issue at SwiftUI rendering.
-  let maxCount = 32
-  var modifierFlags: [UInt64: Set<String>] = [:]
+  private let maxCount = 32
+  public var modifierFlags: [UInt64: Set<String>] = [:]
 
   @Published var entries: [EventHistoryEntry] = []
-  @Published var simpleModificationJsonString: String = ""
-  @Published var addSimpleModificationButtonText: String = ""
   @Published var unknownEventEntries: [EventHistoryEntry] = []
 
-  init() {
+  private init() {
     let obj = unsafeBitCast(self, to: UnsafeMutableRawPointer.self)
     libkrbn_enable_hid_value_monitor(callback, obj)
   }
@@ -237,35 +221,30 @@ public class EventHistory: ObservableObject {
   }
 
   public func copyToPasteboard() {
-    var string = ""
+    var string = "[\n"
 
     entries.forEach { entry in
       if entry.eventType.count > 0 {
-        let eventType = "type:\(entry.eventType)".padding(toLength: 20, withPad: " ", startingAt: 0)
-        let code = "HID usage: \(entry.usagePage),\(entry.usage)".padding(
-          toLength: 20, withPad: " ", startingAt: 0)
-        let name = "name:\(entry.name)".padding(toLength: 60, withPad: " ", startingAt: 0)
-        let misc = "misc:\(entry.misc)"
+        if string != "[\n" {
+          string += ",\n"
+        }
 
-        string.append("\(eventType) \(code) \(name) \(misc)\n")
+        string += "  {\n"
+        string += "    \"type\": \"\(entry.eventType)\",\n"
+        string += "    \"name\": \(entry.name),\n"
+        string += "    \"usagePage\": \"\(entry.usagePage)\",\n"
+        string += "    \"usage\": \"\(entry.usage)\",\n"
+        string += "    \"misc\": \"\(entry.misc)\"\n"
+        string += "  }"
       }
     }
 
-    if !string.isEmpty {
-      let pboard = NSPasteboard.general
-      pboard.clearContents()
-      pboard.writeObjects([string as NSString])
-    }
-  }
+    string += "\n"
+    string += "]"
 
-  public func addSimpleModification() {
-    guard
-      let string = simpleModificationJsonString.addingPercentEncoding(
-        withAllowedCharacters: .urlQueryAllowed)
-    else { return }
-    guard let url = URL(string: "karabiner://karabiner/simple_modifications/new?json=\(string)")
-    else { return }
-    NSWorkspace.shared.open(url)
+    let pboard = NSPasteboard.general
+    pboard.clearContents()
+    pboard.writeObjects([string as NSString])
   }
 
   //
@@ -318,23 +297,27 @@ public class EventHistory: ObservableObject {
   }
 
   public func copyToPasteboardUnknownEvents() {
-    var string = ""
+    var string = "[\n"
 
     unknownEventEntries.forEach { entry in
       if entry.eventType.count > 0 {
-        let eventType = "value:\(entry.eventType)".padding(
-          toLength: 20, withPad: " ", startingAt: 0)
-        let code = "HID usage: \(entry.usagePage),\(entry.usage)".padding(
-          toLength: 20, withPad: " ", startingAt: 0)
+        if string != "[\n" {
+          string += ",\n"
+        }
 
-        string.append("\(eventType) \(code)\n")
+        string += "  {\n"
+        string += "    \"value\": \"\(entry.eventType)\",\n"
+        string += "    \"usagePage\": \"\(entry.usagePage)\",\n"
+        string += "    \"usage\": \"\(entry.usage)\"\n"
+        string += "  }"
       }
     }
 
-    if !string.isEmpty {
-      let pboard = NSPasteboard.general
-      pboard.clearContents()
-      pboard.writeObjects([string as NSString])
-    }
+    string += "\n"
+    string += "]"
+
+    let pboard = NSPasteboard.general
+    pboard.clearContents()
+    pboard.writeObjects([string as NSString])
   }
 }

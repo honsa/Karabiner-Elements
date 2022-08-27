@@ -69,6 +69,7 @@ bool libkrbn_device_identifiers_is_apple(const libkrbn_device_identifiers* p);
 typedef void libkrbn_core_configuration;
 void libkrbn_core_configuration_terminate(libkrbn_core_configuration** p);
 void libkrbn_core_configuration_save(libkrbn_core_configuration* p);
+const char* libkrbn_core_configuration_get_save_error_message(void);
 
 // global_configuration
 
@@ -78,6 +79,8 @@ bool libkrbn_core_configuration_get_global_configuration_show_in_menu_bar(libkrb
 void libkrbn_core_configuration_set_global_configuration_show_in_menu_bar(libkrbn_core_configuration* p, bool value);
 bool libkrbn_core_configuration_get_global_configuration_show_profile_name_in_menu_bar(libkrbn_core_configuration* p);
 void libkrbn_core_configuration_set_global_configuration_show_profile_name_in_menu_bar(libkrbn_core_configuration* p, bool value);
+bool libkrbn_core_configuration_get_global_configuration_unsafe_ui(libkrbn_core_configuration* p);
+void libkrbn_core_configuration_set_global_configuration_unsafe_ui(libkrbn_core_configuration* p, bool value);
 
 // profiles
 
@@ -166,6 +169,11 @@ bool libkrbn_core_configuration_get_selected_profile_device_manipulate_caps_lock
 void libkrbn_core_configuration_set_selected_profile_device_manipulate_caps_lock_led(libkrbn_core_configuration* p,
                                                                                      const libkrbn_device_identifiers* device_identifiers,
                                                                                      bool value);
+bool libkrbn_core_configuration_get_selected_profile_device_treat_as_built_in_keyboard(libkrbn_core_configuration* p,
+                                                                                       const libkrbn_device_identifiers* device_identifiers);
+void libkrbn_core_configuration_set_selected_profile_device_treat_as_built_in_keyboard(libkrbn_core_configuration* p,
+                                                                                       const libkrbn_device_identifiers* device_identifiers,
+                                                                                       bool value);
 bool libkrbn_core_configuration_get_selected_profile_device_disable_built_in_keyboard_if_exists(libkrbn_core_configuration* p,
                                                                                                 const libkrbn_device_identifiers* device_identifiers);
 void libkrbn_core_configuration_set_selected_profile_device_disable_built_in_keyboard_if_exists(libkrbn_core_configuration* p,
@@ -212,6 +220,7 @@ void libkrbn_disable_configuration_monitor(void);
 
 struct libkrbn_system_preferences_properties {
   bool use_fkeys_as_standard_function_keys;
+  int32_t keyboard_types[8];
 };
 
 typedef void (*libkrbn_system_preferences_monitor_callback)(const struct libkrbn_system_preferences_properties* properties,
@@ -219,6 +228,7 @@ typedef void (*libkrbn_system_preferences_monitor_callback)(const struct libkrbn
 void libkrbn_enable_system_preferences_monitor(libkrbn_system_preferences_monitor_callback callback,
                                                void* refcon);
 void libkrbn_disable_system_preferences_monitor(void);
+size_t libkrbn_system_preferences_properties_get_keyboard_types_size(void);
 
 //
 // libkrbn_connected_devices
@@ -230,6 +240,7 @@ void libkrbn_connected_devices_terminate(libkrbn_connected_devices** p);
 size_t libkrbn_connected_devices_get_size(libkrbn_connected_devices* p);
 const char* libkrbn_connected_devices_get_descriptions_manufacturer(libkrbn_connected_devices* p, size_t index);
 const char* libkrbn_connected_devices_get_descriptions_product(libkrbn_connected_devices* p, size_t index);
+const char* libkrbn_connected_devices_get_descriptions_transport(libkrbn_connected_devices* p, size_t index);
 bool libkrbn_connected_devices_get_device_identifiers(libkrbn_connected_devices* p,
                                                       size_t index,
                                                       libkrbn_device_identifiers* device_identifiers);
@@ -322,6 +333,7 @@ size_t libkrbn_log_lines_get_size(libkrbn_log_lines* p);
 const char* libkrbn_log_lines_get_line(libkrbn_log_lines* p, size_t index);
 bool libkrbn_log_lines_is_warn_line(const char* line);
 bool libkrbn_log_lines_is_error_line(const char* line);
+uint64_t libkrbn_log_lines_get_date_number(const char* line);
 
 //
 // libkrbn_hid_value_monitor
@@ -355,6 +367,7 @@ void libkrbn_enable_grabber_client(libkrbn_grabber_client_connected_callback con
                                    libkrbn_grabber_client_connect_failed_callback connect_failed_callback,
                                    libkrbn_grabber_client_closed_callback closed_callback);
 void libkrbn_disable_grabber_client(void);
+void libkrbn_grabber_client_async_set_keyboard_type(uint64_t country_code, uint64_t keyboard_type);
 void libkrbn_grabber_client_async_set_variable(const char* name, int value);
 void libkrbn_grabber_client_sync_set_variable(const char* name, int value);
 

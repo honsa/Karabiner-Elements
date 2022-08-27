@@ -49,27 +49,53 @@ struct DevicesAdvancedView: View {
           List {
             VStack(alignment: .leading, spacing: 0.0) {
               ForEach($settings.connectedDeviceSettings) { $connectedDeviceSetting in
-                HStack(alignment: .center, spacing: 0) {
+                HStack {
                   Toggle(isOn: $connectedDeviceSetting.disableBuiltInKeyboardIfExists) {
-                    Text(
-                      "\(connectedDeviceSetting.connectedDevice.productName) (\(connectedDeviceSetting.connectedDevice.manufacturerName)) [\(String(connectedDeviceSetting.connectedDevice.vendorId)),\(String(connectedDeviceSetting.connectedDevice.productId))]"
-                    )
-                  }.disabled(
+                    HStack(alignment: .center, spacing: 0) {
+                      HStack(spacing: 4.0) {
+                        Spacer()
+                        if connectedDeviceSetting.connectedDevice.isKeyboard {
+                          Image(systemName: "keyboard")
+                        }
+                        if connectedDeviceSetting.connectedDevice.isPointingDevice {
+                          Image(systemName: "capsule.portrait")
+                        }
+                      }
+                      .frame(width: 50.0)
+
+                      HStack {
+                        Text(
+                          "\(connectedDeviceSetting.connectedDevice.productName) (\(connectedDeviceSetting.connectedDevice.manufacturerName))"
+                        )
+                        if connectedDeviceSetting.connectedDevice.transport != "FIFO" {
+                          Text(
+                            String(
+                              format: " [%d,%d (0x%04x,0x%04x)]",
+                              connectedDeviceSetting.connectedDevice.vendorId,
+                              connectedDeviceSetting.connectedDevice.productId,
+                              connectedDeviceSetting.connectedDevice.vendorId,
+                              connectedDeviceSetting.connectedDevice.productId)
+                          )
+                        }
+                      }
+                      .padding(.leading, 12.0)
+                      .padding(.trailing, 12.0)
+                    }
+                    .padding(.vertical, 12.0)
+                  }
+                  .switchToggleStyle()
+                  .if(
                     connectedDeviceSetting.connectedDevice.isBuiltInKeyboard
                       || connectedDeviceSetting.connectedDevice.isBuiltInTrackpad
                       || connectedDeviceSetting.connectedDevice.isBuiltInTouchBar
-                  )
+                  ) {
+                    $0
+                      .disabled(true)
+                      .foregroundColor(Color(NSColor.disabledControlTextColor))
+                  }
 
                   Spacer()
-
-                  if connectedDeviceSetting.connectedDevice.isKeyboard {
-                    Image(systemName: "keyboard")
-                  }
-                  if connectedDeviceSetting.connectedDevice.isPointingDevice {
-                    Image(systemName: "capsule.portrait")
-                  }
                 }
-                .padding(.vertical, 8.0)
 
                 Divider()
               }
