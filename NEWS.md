@@ -2,6 +2,17 @@
 
 ## Beta
 
+-   ⚡️ Improvements
+    -   Update `set_mouse_cursor_position` to use the current screen if `screen` option is not specified. (Thanks to @gnawf)
+    -   Sparkle Framework has been updated.
+-   🐛 Bug Fixes
+    -   Fixed an issue that the `device_if` and `device_unless` does not work if vendor_id or product_id is zero. (or more precisely, if vendor_id or product_id cannot be retrieved and is set to 0)
+
+## Karabiner-Elements 14.9.0
+
+-   [📦 Download](https://github.com/pqrs-org/Karabiner-Elements/releases/download/v14.9.0/Karabiner-Elements-14.9.0.dmg)
+-   📅 Release date
+    -   Sep 11, 2022
 -   ✨ New Features
     -   Supported Remote control buttons. (menu arrows buttons, color buttons)
     -   The `is_built_in_keyboard` has been added into `device_if` and `device_unless`.
