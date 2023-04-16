@@ -9,6 +9,8 @@ Karabiner-Elements is a powerful utility for keyboard customization on macOS Sie
 
 You can download Karabiner-Elements from the [official site](https://karabiner-elements.pqrs.org/).
 
+Alternatively, for users of [homebrew](https://brew.sh/), Karabiner-Elements may be installed with `brew install --cask karabiner-elements`.
+
 ### Old releases
 
 You can download previous versions of Karabiner-Elements from [here](https://karabiner-elements.pqrs.org/docs/releasenotes/).
@@ -107,7 +109,7 @@ System requirements to build Karabiner-Elements:
 Karabiner-Elements uses some pre-built binaries in the source tree.
 
 -   `src/vendor/Karabiner-DriverKit-VirtualHIDDevice/dist/Karabiner-DriverKit-VirtualHIDDevice-*.dmg`
--   `Sparkle.framework` in `src/apps/PreferencesWindow/`
+-   `Sparkle.framework` in `src/apps/SettingsWindow/`
 
 The above `make package` command does not rebuild these binaries.<br/>
 (These binaries will be copied in the distributed package.)

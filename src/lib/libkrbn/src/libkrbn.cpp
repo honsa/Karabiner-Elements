@@ -7,6 +7,7 @@
 #include "libkrbn/impl/libkrbn_components_manager.hpp"
 #include "libkrbn/impl/libkrbn_cpp.hpp"
 #include "process_utility.hpp"
+#include "run_loop_thread_utility.hpp"
 #include "types.hpp"
 #include "update_utility.hpp"
 #include <fstream>
@@ -17,6 +18,7 @@
 
 namespace {
 std::shared_ptr<krbn::dispatcher_utility::scoped_dispatcher_manager> scoped_dispatcher_manager_;
+std::shared_ptr<krbn::run_loop_thread_utility::scoped_run_loop_thread_manager> scoped_run_loop_thread_manager_;
 std::unique_ptr<libkrbn_components_manager> libkrbn_components_manager_;
 } // namespace
 
@@ -35,6 +37,10 @@ void libkrbn_initialize(void) {
     scoped_dispatcher_manager_ = krbn::dispatcher_utility::initialize_dispatchers();
   }
 
+  if (!scoped_run_loop_thread_manager_) {
+    scoped_run_loop_thread_manager_ = krbn::run_loop_thread_utility::initialize_shared_run_loop_thread();
+  }
+
   if (!libkrbn_components_manager_) {
     libkrbn_components_manager_ = std::make_unique<libkrbn_components_manager>();
   }
@@ -44,6 +50,8 @@ void libkrbn_terminate(void) {
   krbn::logger::get_logger()->info(__func__);
 
   libkrbn_components_manager_ = nullptr;
+
+  scoped_run_loop_thread_manager_ = nullptr;
 
   scoped_dispatcher_manager_ = nullptr;
 }
@@ -62,6 +70,10 @@ const char* libkrbn_get_user_configuration_directory(void) {
 
 const char* libkrbn_get_user_complex_modifications_assets_directory(void) {
   return krbn::constants::get_user_complex_modifications_assets_directory().c_str();
+}
+
+const char* libkrbn_get_system_app_icon_configuration_file_path(void) {
+  return krbn::constants::get_system_app_icon_configuration_file_path().c_str();
 }
 
 bool libkrbn_lock_single_application_with_user_pid_file(const char* _Nonnull pid_file_name) {
@@ -92,10 +104,6 @@ void libkrbn_launchctl_bootout_console_user_server(void) {
   krbn::launchctl_utility::bootout_console_user_server();
 }
 
-void libkrbn_check_for_updates_stable_only(void) {
-  krbn::update_utility::check_for_updates_stable_only();
-}
-
 void libkrbn_launch_event_viewer(void) {
   krbn::application_launcher::launch_event_viewer();
 }
@@ -104,8 +112,8 @@ void libkrbn_launch_menu(void) {
   krbn::application_launcher::launch_menu();
 }
 
-void libkrbn_launch_preferences(void) {
-  krbn::application_launcher::launch_preferences();
+void libkrbn_launch_settings(void) {
+  krbn::application_launcher::launch_settings();
 }
 
 void libkrbn_launch_multitouch_extension(void) {
@@ -584,6 +592,12 @@ void libkrbn_enable_grabber_client(libkrbn_grabber_client_connected_callback con
 void libkrbn_disable_grabber_client(void) {
   if (libkrbn_components_manager_) {
     libkrbn_components_manager_->disable_grabber_client();
+  }
+}
+
+void libkrbn_grabber_client_async_set_app_icon(int number) {
+  if (libkrbn_components_manager_) {
+    libkrbn_components_manager_->grabber_client_async_set_app_icon(number);
   }
 }
 

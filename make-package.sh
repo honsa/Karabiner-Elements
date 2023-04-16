@@ -35,9 +35,12 @@ cp version "$basedir/package-version"
 cp src/scripts/uninstall.sh "$basedir"
 cp src/scripts/uninstall_core.sh "$basedir"
 cp files/complex_modifications_rules_example.json "$basedir"
+cp -R "src/apps/AppIconSwitcher/build/Release/Karabiner-AppIconSwitcher.app" "$basedir"
 cp -R "src/apps/Menu/build/Release/Karabiner-Menu.app" "$basedir"
 cp -R "src/apps/MultitouchExtension/build/Release/Karabiner-MultitouchExtension.app" "$basedir"
 cp -R "src/apps/NotificationWindow/build/Release/Karabiner-NotificationWindow.app" "$basedir"
+# Save a copy of Karabiner-Elements.app so that we can restore it if /Applications/Karabiner-Elements.app is manually deleted.
+cp -R "src/apps/SettingsWindow/build/Release/Karabiner-Elements.app" "$basedir"
 
 basedir="pkgroot/Library/Application Support/org.pqrs/Karabiner-Elements/scripts"
 mkdir -p "$basedir"
@@ -59,8 +62,8 @@ cp -R files/LaunchAgents "pkgroot/Library"
 
 basedir="pkgroot/Applications"
 mkdir -p "$basedir"
-cp -R "src/apps/PreferencesWindow/build/Release/Karabiner-Elements.app" "$basedir"
 cp -R "src/apps/EventViewer/build/Release/Karabiner-EventViewer.app" "$basedir"
+cp -R "src/apps/SettingsWindow/build/Release/Karabiner-Elements.app" "$basedir"
 
 set +e
 

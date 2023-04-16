@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app_icon.hpp"
 #include "constants.hpp"
 #include "filesystem_utility.hpp"
 #include "grabber/components_manager.hpp"
@@ -10,10 +11,13 @@
 #include "process_utility.hpp"
 #include <iostream>
 #include <mach/mach.h>
+#include <pqrs/osx/launch_services.hpp>
+#include <pqrs/osx/workspace.hpp>
 
 namespace krbn {
 namespace grabber {
 namespace main {
+
 int daemon(void) {
   //
   // Setup logger
@@ -38,6 +42,72 @@ int daemon(void) {
       return 1;
     }
   }
+
+  //
+  // Restore /Applications/Karabiner-Elements.app if it was removed manually
+  //
+
+  if (!std::filesystem::exists("/Applications/Karabiner-Elements.app")) {
+    logger::get_logger()->info("Restore /Applications/Karabiner-Elements.app");
+
+    // In order to have it registered with launch services,
+    // we have to copy application files instead of creating symlink at /Applications/Karabiner-Elements.app.
+
+    auto copy_options = std::filesystem::copy_options::update_existing |
+                        std::filesystem::copy_options::recursive |
+                        std::filesystem::copy_options::copy_symlinks;
+    std::error_code error_code;
+    std::filesystem::copy("/Library/Application Support/org.pqrs/Karabiner-Elements/Karabiner-Elements.app",
+                          "/Applications/Karabiner-Elements.app",
+                          copy_options,
+                          error_code);
+    if (error_code) {
+      logger::get_logger()->error("Failed to restore /Applications/Karabiner-Elements.app: {0}", error_code.message());
+    }
+  }
+
+  //
+  // Register /Applications/Karabiner-Elements.app to launch services
+  //
+
+  {
+    auto status = pqrs::osx::launch_services::register_application("/Applications/Karabiner-Elements.app");
+    logger::get_logger()->info("launch_services::register_application /Applications/Karabiner-Elements.app: {0}", status.to_string());
+  }
+
+  //
+  // Check Karabiner-Elements.app exists
+  //
+
+  auto settings_application_url = pqrs::osx::workspace::find_application_url_by_bundle_identifier("org.pqrs.Karabiner-Elements.Settings");
+  logger::get_logger()->info("Karabiner-Elements.app path: {0}", settings_application_url);
+
+  //
+  // Update app_icon
+  //
+
+  {
+    auto icon = app_icon(constants::get_system_app_icon_configuration_file_path());
+    auto number = icon.get_number();
+    logger::get_logger()->info("set_app_icon {0}", number);
+    application_launcher::launch_app_icon_switcher(number);
+  }
+
+  //
+  // Touch /Library/LaunchAgents/*.plist and /Library/LaunchDaemons/*.plist to refresh the name in Login Items System Settings.
+  //
+  // Note:
+  // Login Items maybe refer the Launch Services database before the applications registration is completed.
+  // If the application registration of AssociatedBundleIdentifiers is not completed at the time,
+  // Login Items displays the developer name instead of the application name.
+  // And the result is cached, the developer name will be displayed permanently.
+  // (We have confirmed this behaivor on macOS 13.1)
+  //
+  // In order to refresh the cache, we update the modification time of *.plist.
+  //
+
+  system("/usr/bin/touch /Library/LaunchAgents/org.pqrs.karabiner.*");
+  system("/usr/bin/touch /Library/LaunchDaemons/org.pqrs.karabiner.*");
 
   //
   // Prepare state_json_writer

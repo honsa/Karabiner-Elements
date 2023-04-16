@@ -22,6 +22,7 @@
 #include "monitor/event_tap_monitor.hpp"
 #include "notification_message_manager.hpp"
 #include "probable_stuck_events_manager.hpp"
+#include "run_loop_thread_utility.hpp"
 #include "types.hpp"
 #include <deque>
 #include <fstream>
@@ -29,6 +30,7 @@
 #include <nod/nod.hpp>
 #include <pqrs/karabiner/driverkit/virtual_hid_device_driver.hpp>
 #include <pqrs/osx/iokit_hid_manager.hpp>
+#include <pqrs/osx/iokit_power_management.hpp>
 #include <pqrs/osx/system_preferences.hpp>
 #include <pqrs/spdlog.hpp>
 #include <string_view>
@@ -43,7 +45,7 @@ public:
 
   device_grabber(std::weak_ptr<console_user_server_client> weak_console_user_server_client,
                  std::weak_ptr<grabber_state_json_writer> weak_grabber_state_json_writer) : dispatcher_client(),
-                                                                                            virtual_hid_device_service_check_timer_(*this),
+                                                                                            system_sleeping_(false),
                                                                                             profile_(nlohmann::json::object()),
                                                                                             logger_unique_filter_(logger::get_logger()) {
     notification_message_manager_ = std::make_shared<notification_message_manager>(
@@ -69,16 +71,7 @@ public:
     // virtual_hid_device_service_client_
     //
 
-    // Remove old socket files.
-    {
-      auto directory_path = virtual_hid_device_service_client_socket_directory_path();
-      std::error_code ec;
-      std::filesystem::remove_all(directory_path, ec);
-      std::filesystem::create_directory(directory_path, ec);
-    }
-
-    virtual_hid_device_service_client_ = std::make_shared<pqrs::karabiner::driverkit::virtual_hid_device_service::client>(
-        virtual_hid_device_service_client_socket_file_path());
+    virtual_hid_device_service_client_ = std::make_shared<pqrs::karabiner::driverkit::virtual_hid_device_service::client>();
 
     virtual_hid_device_service_client_->connected.connect([this] {
       logger::get_logger()->info("virtual_hid_device_service_client_ connected");
@@ -159,15 +152,6 @@ public:
       }
     });
 
-    virtual_hid_device_service_check_timer_.start(
-        [this] {
-          virtual_hid_device_service_client_->async_driver_loaded();
-          virtual_hid_device_service_client_->async_driver_version_matched();
-          virtual_hid_device_service_client_->async_virtual_hid_keyboard_ready();
-          virtual_hid_device_service_client_->async_virtual_hid_pointing_ready();
-        },
-        std::chrono::milliseconds(1000));
-
     post_event_to_virtual_devices_manipulator_ =
         std::make_shared<manipulator::manipulators::post_event_to_virtual_devices::post_event_to_virtual_devices>(
             weak_console_user_server_client,
@@ -210,6 +194,7 @@ public:
     };
 
     hid_manager_ = std::make_unique<pqrs::osx::iokit_hid_manager>(weak_dispatcher_,
+                                                                  pqrs::cf::run_loop_thread::extra::get_shared_run_loop_thread(),
                                                                   matching_dictionaries,
                                                                   std::chrono::milliseconds(1000));
 
@@ -364,11 +349,72 @@ public:
       logger::get_logger()->error("{0}: {1}", message, kern_return.to_string());
       logger_unique_filter_.reset();
     });
+
+    //
+    // power_management_monitor_
+    //
+
+    power_management_monitor_ = std::make_unique<pqrs::osx::iokit_power_management::monitor>(weak_dispatcher_,
+                                                                                             run_loop_thread_utility::get_power_management_run_loop_thread());
+
+    power_management_monitor_->system_will_sleep.connect([this](auto&& kernel_port,
+                                                                auto&& notification_id,
+                                                                auto&& wait) {
+      logger::get_logger()->info("system_will_sleep");
+
+      set_system_sleeping(true);
+
+      enqueue_to_dispatcher(
+          [kernel_port, notification_id, wait]() {
+            logger::get_logger()->info("call IOAllowPowerChange");
+
+            IOAllowPowerChange(kernel_port, notification_id);
+
+            wait->notify();
+          },
+          when_now() + std::chrono::seconds(1));
+    });
+
+    power_management_monitor_->system_will_power_on.connect([this] {
+      logger::get_logger()->info("system_will_power_on");
+
+      set_system_sleeping(false);
+    });
+
+    power_management_monitor_->system_has_powered_on.connect([this] {
+      logger::get_logger()->info("system_has_powered_on");
+
+      set_system_sleeping(false);
+    });
+
+    power_management_monitor_->can_system_sleep.connect([](auto&& kernel_port,
+                                                           auto&& notification_id,
+                                                           auto&& wait) {
+      logger::get_logger()->info("can_system_sleep");
+
+      IOAllowPowerChange(kernel_port, notification_id);
+
+      wait->notify();
+    });
+
+    power_management_monitor_->system_will_not_sleep.connect([this] {
+      logger::get_logger()->info("system_will_not_sleep");
+
+      set_system_sleeping(false);
+    });
+
+    power_management_monitor_->error_occurred.connect([](auto&& message) {
+      logger::get_logger()->error("power_management_monitor_ error: {0}", message);
+    });
+
+    power_management_monitor_->async_start();
   }
 
   virtual ~device_grabber(void) {
     detach_from_dispatcher([this] {
       stop();
+
+      power_management_monitor_ = nullptr;
 
       hid_manager_ = nullptr;
 
@@ -597,18 +643,6 @@ public:
   }
 
 private:
-  std::filesystem::path virtual_hid_device_service_client_socket_directory_path(void) const {
-    // Note:
-    // The socket file path length must be <= 103 because sizeof(sockaddr_un.sun_path) == 104.
-    // So we use the shorten name virtual_hid_device_service_client => vhidd_client.
-
-    return "/Library/Application Support/org.pqrs/tmp/rootonly/vhidd_client";
-  }
-
-  std::filesystem::path virtual_hid_device_service_client_socket_file_path(void) const {
-    return virtual_hid_device_service_client_socket_directory_path() / filesystem_utility::make_socket_file_basename();
-  }
-
   void stop(void) {
     configuration_monitor_ = nullptr;
 
@@ -616,7 +650,6 @@ private:
 
     event_tap_monitor_ = nullptr;
 
-    virtual_hid_device_service_check_timer_.stop();
     virtual_hid_device_service_client_->async_stop();
   }
 
@@ -781,6 +814,19 @@ private:
     }
 
     //
+    // In macOS, the behavior of devices in sleep differs depending on whether the device is seized or not.
+    // For devices that have been seized, it will attempt to wake up on any event.
+    // In other words, even moving the mouse pointer will prevent sleep.
+    //
+    // There seems to be no way to avoid this behavior, at least on macOS 13, other than to ungrab the device.
+    // Therefore, do not grab the device while system is sleeping.
+    //
+
+    if (system_sleeping_) {
+      return grabbable_state::state::ungrabbable_temporarily;
+    }
+
+    //
     // The device is always grabbable if it is ignored devices
     // because karabiner_grabber does not seize the device and do not affect existing hidd processing.
     // (e.g. key repeat)
@@ -798,6 +844,15 @@ private:
       logger_unique_filter_.warn(message);
       unset_device_ungrabbable_temporarily_notification_message(entry->get_device_id());
       return grabbable_state::state::ungrabbable_temporarily;
+    }
+
+    if (needs_grab_pointing_device()) {
+      if (!virtual_hid_devices_state_.get_virtual_hid_pointing_ready()) {
+        std::string message = "virtual_hid_pointing is not ready. Please wait for a while.";
+        logger_unique_filter_.warn(message);
+        unset_device_ungrabbable_temporarily_notification_message(entry->get_device_id());
+        return grabbable_state::state::ungrabbable_temporarily;
+      }
     }
 
     // ----------------------------------------
@@ -869,16 +924,28 @@ private:
     return false;
   }
 
-  bool is_pointing_device_grabbed(void) const {
+  bool needs_grab_pointing_device(void) const {
+    //
+    // Check if there is a pointing device to grab
+    //
+
     for (const auto& e : entries_) {
       if (auto device_properties = e.second->get_device_properties()) {
         if (device_properties->get_is_pointing_device().value_or(false) &&
-            e.second->get_event_origin() == event_origin::grabbed_device &&
-            e.second->get_grabbed()) {
+            e.second->get_event_origin() == event_origin::grabbed_device) {
           return true;
         }
       }
     }
+
+    //
+    // Check if a setting exists that would fire pointing device events
+    //
+
+    if (manipulator_managers_connector_.needs_virtual_hid_pointing()) {
+      return true;
+    }
+
     return false;
   }
 
@@ -888,8 +955,7 @@ private:
   }
 
   void update_virtual_hid_pointing(void) {
-    if (is_pointing_device_grabbed() ||
-        manipulator_managers_connector_.needs_virtual_hid_pointing()) {
+    if (needs_grab_pointing_device()) {
       virtual_hid_device_service_client_->async_virtual_hid_pointing_initialize();
       return;
     }
@@ -993,9 +1059,15 @@ private:
     }
   }
 
+  void set_system_sleeping(bool value) {
+    system_sleeping_ = value;
+
+    update_devices_disabled();
+    async_grab_devices();
+  }
+
   std::shared_ptr<pqrs::karabiner::driverkit::virtual_hid_device_service::client> virtual_hid_device_service_client_;
 
-  pqrs::dispatcher::extra::timer virtual_hid_device_service_check_timer_;
   virtual_hid_devices_state virtual_hid_devices_state_;
 
   std::vector<nod::scoped_connection> external_signal_connections_;
@@ -1013,6 +1085,9 @@ private:
   std::unordered_map<device_id, std::shared_ptr<probable_stuck_events_manager>> probable_stuck_events_managers_;
   std::unordered_map<device_id, std::shared_ptr<device_grabber_details::entry>> entries_;
   hid_queue_values_converter hid_queue_values_converter_;
+
+  std::unique_ptr<pqrs::osx::iokit_power_management::monitor> power_management_monitor_;
+  bool system_sleeping_;
 
   core_configuration::details::profile profile_;
   pqrs::osx::system_preferences::properties system_preferences_properties_;

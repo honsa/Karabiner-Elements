@@ -19,12 +19,12 @@ struct InputMonitoringAlertView: View {
 
       VStack(spacing: 0) {
         Text("Karabiner-EventViewer requires Input Monitoring permission to show input events.")
-        Text("Please allow on Security & Privacy System Preferences.")
+        Text("Please allow on Privacy & Security System Settings.")
       }
 
-      Button(action: { openSystemPreferencesSecurity() }) {
+      Button(action: { openSystemSettingsSecurity() }) {
         Label(
-          "Open Security & Privacy System Preferences...",
+          "Open Privacy & Security System Settings...",
           systemImage: "arrow.forward.circle.fill")
       }
 
@@ -38,7 +38,7 @@ struct InputMonitoringAlertView: View {
     .padding()
   }
 
-  func openSystemPreferencesSecurity() {
+  func openSystemSettingsSecurity() {
     let url = URL(
       string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!
     NSWorkspace.shared.open(url)

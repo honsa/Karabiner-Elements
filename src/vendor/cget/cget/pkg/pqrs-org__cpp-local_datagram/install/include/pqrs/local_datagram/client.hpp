@@ -18,6 +18,7 @@ class client final : public dispatcher::extra::dispatcher_client {
 public:
   // Signals (invoked from the dispatcher thread)
 
+  nod::signal<void(const std::string&)> warning_reported;
   nod::signal<void(void)> connected;
   nod::signal<void(const asio::error_code&)> connect_failed;
   nod::signal<void(void)> closed;
@@ -42,6 +43,12 @@ public:
     client_impl_ = std::make_shared<impl::client_impl>(
         weak_dispatcher_,
         client_send_entries_);
+
+    client_impl_->warning_reported.connect([this](auto&& message) {
+      enqueue_to_dispatcher([this, message] {
+        warning_reported(message);
+      });
+    });
 
     client_impl_->connected.connect([this] {
       enqueue_to_dispatcher([this] {
@@ -139,7 +146,7 @@ public:
   }
 
   void async_send(const std::vector<uint8_t>& v,
-                  const std::function<void(void)>& processed = nullptr) {
+                  std::function<void(void)> processed = nullptr) {
     auto entry = std::make_shared<impl::send_entry>(impl::send_entry::type::user_data,
                                                     v,
                                                     nullptr,
@@ -149,7 +156,7 @@ public:
 
   void async_send(const uint8_t* p,
                   size_t length,
-                  const std::function<void(void)>& processed = nullptr) {
+                  std::function<void(void)> processed = nullptr) {
     auto entry = std::make_shared<impl::send_entry>(impl::send_entry::type::user_data,
                                                     p,
                                                     length,

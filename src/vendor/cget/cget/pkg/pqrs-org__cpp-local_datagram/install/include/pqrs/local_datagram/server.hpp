@@ -17,6 +17,7 @@ class server final : public dispatcher::extra::dispatcher_client {
 public:
   // Signals (invoked from the dispatcher thread)
 
+  nod::signal<void(const std::string&)> warning_reported;
   nod::signal<void(void)> bound;
   nod::signal<void(const asio::error_code&)> bind_failed;
   nod::signal<void(void)> closed;
@@ -66,7 +67,7 @@ public:
 
   void async_send(const std::vector<uint8_t>& v,
                   std::shared_ptr<asio::local::datagram_protocol::endpoint> destination_endpoint,
-                  const std::function<void(void)>& processed = nullptr) {
+                  std::function<void(void)> processed = nullptr) {
     auto entry = std::make_shared<impl::send_entry>(impl::send_entry::type::user_data,
                                                     v,
                                                     destination_endpoint,
@@ -77,7 +78,7 @@ public:
   void async_send(const uint8_t* p,
                   size_t length,
                   std::shared_ptr<asio::local::datagram_protocol::endpoint> destination_endpoint,
-                  const std::function<void(void)>& processed = nullptr) {
+                  std::function<void(void)> processed = nullptr) {
     auto entry = std::make_shared<impl::send_entry>(impl::send_entry::type::user_data,
                                                     p,
                                                     length,
@@ -103,6 +104,12 @@ private:
 
     server_impl_ = std::make_unique<impl::server_impl>(weak_dispatcher_,
                                                        server_send_entries_);
+
+    server_impl_->warning_reported.connect([this](auto&& message) {
+      enqueue_to_dispatcher([this, message] {
+        warning_reported(message);
+      });
+    });
 
     server_impl_->bound.connect([this] {
       enqueue_to_dispatcher([this] {

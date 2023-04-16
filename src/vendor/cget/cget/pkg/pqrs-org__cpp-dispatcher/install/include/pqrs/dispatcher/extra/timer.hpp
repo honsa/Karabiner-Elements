@@ -33,7 +33,7 @@ public:
     }
   }
 
-  void start(const std::function<void(void)>& function,
+  void start(std::function<void(void)> function,
              duration interval) {
     dispatcher_client_.enqueue_to_dispatcher([this, function, interval] {
       ++current_function_id_;
@@ -60,7 +60,13 @@ private:
     }
 
     if (function_) {
-      function_();
+      // We should capture function_ to call proper function even if function_ is updated in `start` or `stop` method.
+      auto f = function_;
+
+      // The `function_` call must be wrapped in enqueue_to_dispatcher in order to avoid heap-use-after-free when the timer itself is destroyed in `function_`.
+      dispatcher_client_.enqueue_to_dispatcher([f] {
+        f();
+      });
     }
 
     dispatcher_client_.enqueue_to_dispatcher(

@@ -11,13 +11,14 @@
 #include "karabiner_version.h"
 #include "logger.hpp"
 #include "monitor/configuration_monitor.hpp"
+#include "run_loop_thread_utility.hpp"
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <pqrs/thread_wait.hpp>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 namespace {
-void apply_core_configuration_function(const std::function<void(std::shared_ptr<krbn::core_configuration::core_configuration>)>& function) {
+void apply_core_configuration_function(std::function<void(std::shared_ptr<krbn::core_configuration::core_configuration>)> function) {
   auto wait = pqrs::make_thread_wait();
   krbn::configuration_monitor monitor(krbn::constants::get_user_core_configuration_file_path(),
                                       geteuid());
@@ -109,6 +110,7 @@ int remove_system_default_profile(void) {
 
 int main(int argc, char** argv) {
   auto scoped_dispatcher_manager = krbn::dispatcher_utility::initialize_dispatchers();
+  auto scoped_run_loop_thread_manager = krbn::run_loop_thread_utility::initialize_shared_run_loop_thread();
 
   int exit_code = 0;
 
@@ -255,7 +257,7 @@ int main(int argc, char** argv) {
       }
     }
 
-  } catch (const cxxopts::OptionException& e) {
+  } catch (const cxxopts::exceptions::exception& e) {
     std::cout << "error parsing options: " << e.what() << std::endl;
     exit_code = 2;
     goto finish;
